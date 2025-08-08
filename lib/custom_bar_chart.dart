@@ -491,59 +491,7 @@ class BarChartPainter<T> extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeCap = StrokeCap.round;
 
-      // Calculate the end position of the vertical line based on bar type
-      final selectedBarValue = yValueMapper(data[i]);
-      double lineStartY;
-      double lineEndY;
-
-      if (selectedBarValue != null && selectedBarValue >= 0) {
-        // For positive bars: line goes from tooltip arrow to x-axis (zero line)
-        // Calculate tooltip position to connect the line
-        final barValue = yValueMapper(data[i]);
-        final extraSpaceForPositiveBars =
-            (barValue != null && barValue >= 0) ? 20.0 : 0.0;
-        final tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
-        // Use estimated tooltip height (text height + padding + arrow height)
-        final estimatedTooltipHeight = 50.0; // Approximate height
-        lineStartY =
-            tooltipY + estimatedTooltipHeight + 10; // Start from arrow tip
-        lineEndY = sepY;
-      } else if (selectedBarValue != null && selectedBarValue < 0) {
-        // For negative bars: line goes from chart top till the end of negative bar
-        lineStartY = topMargin + topBarGap; // Start from chart area top
-        double negativeBarBottom =
-            sepY + ((0 - selectedBarValue) / yRange) * chartHeight;
-        // Ensure it stays within chart bounds
-        negativeBarBottom = negativeBarBottom.clamp(
-          topMargin + topBarGap,
-          topMargin + topBarGap + chartHeight,
-        );
-        lineEndY = negativeBarBottom;
-      } else {
-        // For null values: line goes from chart top till x-axis
-        lineStartY = topMargin + topBarGap; // Start from chart area top
-        lineEndY = sepY;
-      }
-
-      // Draw dashes from calculated start to end position
-      final dashHeight = 5;
-      final dashSpace = 5;
-      double currentY = lineStartY;
-
-      while (currentY < lineEndY) {
-        final remainingHeight = lineEndY - currentY;
-        final actualDashHeight =
-            remainingHeight < dashHeight ? remainingHeight : dashHeight;
-
-        canvas.drawLine(
-          Offset(barCenter, currentY),
-          Offset(barCenter, currentY + actualDashHeight),
-          linePaint,
-        );
-        currentY += dashHeight + dashSpace;
-      }
-
-      // Draw tooltip
+      // Calculate tooltip content and height first (needed for dotted line positioning)
       final dataItem = data[i];
 
       // Use tooltip formatter if provided, otherwise use default formatting
@@ -568,11 +516,85 @@ class BarChartPainter<T> extends CustomPainter {
       );
       final textPainter = TextPainter(
         text: textSpan,
-        textAlign: TextAlign.center,
+        textAlign: TextAlign.left,
         textDirection: TextDirection.ltr,
-      )..layout(maxWidth: 150.0); // Adjusted to fixed width
-      final tooltipWidth = 150.0; // Fixed width of 150.0 pixels
-      final tooltipHeight = textPainter.height + 16;
+      )..layout(maxWidth: 200.0);
+      final actualTooltipHeight = textPainter.height + 16; // Dynamic height
+      final actualTooltipWidth = (textPainter.width + 16).clamp(
+        150.0,
+        200.0,
+      ); // Dynamic width with limits
+
+      // Calculate the end position of the vertical line based on bar type
+      final selectedBarValue = yValueMapper(data[i]);
+      double lineStartY;
+      double lineEndY;
+
+      if (selectedBarValue != null && selectedBarValue >= 0) {
+        // For positive bars: line goes from tooltip arrow to x-axis (zero line)
+        // Calculate tooltip position to connect the line
+        final barValue = yValueMapper(data[i]);
+        final extraSpaceForPositiveBars =
+            (barValue != null && barValue >= 0) ? 20.0 : 0.0;
+        final tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
+        // Use actual calculated tooltip height + arrow height
+        lineStartY =
+            tooltipY + actualTooltipHeight + 10; // Start from arrow tip
+        lineEndY = sepY;
+      } else if (selectedBarValue != null && selectedBarValue < 0) {
+        // For negative bars: line goes from tooltip arrow to end of negative bar
+        // Calculate tooltip position to connect the line
+        final barValue = yValueMapper(data[i]);
+        final extraSpaceForPositiveBars =
+            (barValue != null && barValue >= 0) ? 20.0 : 0.0;
+        final tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
+        // Use actual calculated tooltip height + arrow height
+        lineStartY =
+            tooltipY + actualTooltipHeight + 10; // Start from arrow tip
+        double negativeBarBottom =
+            sepY + ((0 - selectedBarValue) / yRange) * chartHeight;
+        // Ensure it stays within chart bounds
+        negativeBarBottom = negativeBarBottom.clamp(
+          topMargin + topBarGap,
+          topMargin + topBarGap + chartHeight,
+        );
+        lineEndY = negativeBarBottom;
+      } else {
+        // For null values: line goes from tooltip arrow to x-axis
+        // Calculate tooltip position to connect the line
+        final barValue = yValueMapper(data[i]);
+        final extraSpaceForPositiveBars =
+            (barValue != null && barValue >= 0) ? 20.0 : 0.0;
+        final tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
+        // Use actual calculated tooltip height + arrow height
+        lineStartY =
+            tooltipY + actualTooltipHeight + 10; // Start from arrow tip
+        lineEndY = sepY;
+      }
+
+      // Draw dashes from calculated start to end position
+      final dashHeight = 5;
+      final dashSpace = 5;
+      double currentY = lineStartY;
+
+      while (currentY < lineEndY) {
+        final remainingHeight = lineEndY - currentY;
+        final actualDashHeight =
+            remainingHeight < dashHeight ? remainingHeight : dashHeight;
+
+        canvas.drawLine(
+          Offset(barCenter, currentY),
+          Offset(barCenter, currentY + actualDashHeight),
+          linePaint,
+        );
+        currentY += dashHeight + dashSpace;
+      }
+
+      // Draw tooltip using already calculated values
+      final tooltipWidth =
+          actualTooltipWidth; // Use the dynamically calculated width
+      final tooltipHeight =
+          actualTooltipHeight; // Use the already calculated height
 
       // Calculate initial tooltip position (try to align arrow at 25% with bar center)
       double tooltipX = barCenter - tooltipWidth * 0.25;
@@ -669,10 +691,10 @@ class BarChartPainter<T> extends CustomPainter {
         arrowBorderPaint,
       );
 
-      // Draw text on top
+      // Draw text on top (left-aligned)
       textPainter.paint(
         canvas,
-        Offset(tooltipX + (tooltipWidth - textPainter.width) / 2, tooltipY + 8),
+        Offset(tooltipX + 8, tooltipY + 8), // Left-aligned with 8px padding
       );
 
       // Draw dot indicator on selected bar
@@ -767,13 +789,13 @@ class BarChartPainter<T> extends CustomPainter {
 
     final xLabelText =
         xAxisLabelFormatter != null
-            ? xAxisLabelFormatter!(xValue)
+            ? xAxisLabelFormatter(xValue)
             : 'Day $xValue';
     final yLabelText =
         yValue == null
             ? 'No Data'
             : (yAxisLabelFormatter != null
-                ? yAxisLabelFormatter!(yValue)
+                ? yAxisLabelFormatter(yValue)
                 : '$yValue');
 
     return '$xLabelText\n$yLabelText';

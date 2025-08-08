@@ -490,21 +490,54 @@ class BarChartPainter<T> extends CustomPainter {
             ..strokeWidth = 2
             ..style = PaintingStyle.stroke
             ..strokeCap = StrokeCap.round;
-      // make dashes round
+
+      // Calculate the end position of the vertical line based on bar type
+      final selectedBarValue = yValueMapper(data[i]);
+      double lineStartY;
+      double lineEndY;
+
+      if (selectedBarValue != null && selectedBarValue >= 0) {
+        // For positive bars: line goes from tooltip arrow to x-axis (zero line)
+        // Calculate tooltip position to connect the line
+        final barValue = yValueMapper(data[i]);
+        final extraSpaceForPositiveBars =
+            (barValue != null && barValue >= 0) ? 20.0 : 0.0;
+        final tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
+        // Use estimated tooltip height (text height + padding + arrow height)
+        final estimatedTooltipHeight = 50.0; // Approximate height
+        lineStartY =
+            tooltipY + estimatedTooltipHeight + 10; // Start from arrow tip
+        lineEndY = sepY;
+      } else if (selectedBarValue != null && selectedBarValue < 0) {
+        // For negative bars: line goes from chart top till the end of negative bar
+        lineStartY = topMargin + topBarGap; // Start from chart area top
+        double negativeBarBottom =
+            sepY + ((0 - selectedBarValue) / yRange) * chartHeight;
+        // Ensure it stays within chart bounds
+        negativeBarBottom = negativeBarBottom.clamp(
+          topMargin + topBarGap,
+          topMargin + topBarGap + chartHeight,
+        );
+        lineEndY = negativeBarBottom;
+      } else {
+        // For null values: line goes from chart top till x-axis
+        lineStartY = topMargin + topBarGap; // Start from chart area top
+        lineEndY = sepY;
+      }
+
+      // Draw dashes from calculated start to end position
       final dashHeight = 5;
       final dashSpace = 5;
-      double currentY = topMargin;
-      // if bar is green then dotted line will start from chart top to green bar's bottom else it will start from top of chart to bottom of chart
-      // if (yValueMapper(data[i], i) != null && yValueMapper(data[i], i)! >= 0) {
-      //   currentY = sepY - (yValueMapper(data[i], i)! / yRange) * chartHeight;
-      // } else {
-      //   currentY = sepY;
-      // }
-      // Draw dashes from top to bottom of chart
-      while (currentY < topMargin + topBarGap + chartHeight) {
+      double currentY = lineStartY;
+
+      while (currentY < lineEndY) {
+        final remainingHeight = lineEndY - currentY;
+        final actualDashHeight =
+            remainingHeight < dashHeight ? remainingHeight : dashHeight;
+
         canvas.drawLine(
           Offset(barCenter, currentY),
-          Offset(barCenter, currentY + dashHeight),
+          Offset(barCenter, currentY + actualDashHeight),
           linePaint,
         );
         currentY += dashHeight + dashSpace;
@@ -550,7 +583,12 @@ class BarChartPainter<T> extends CustomPainter {
         leftMargin,
         size.width - rightMargin - tooltipWidth,
       );
-      final tooltipY = topMargin - 4;
+
+      // Add extra space between positive bars and tooltip
+      final barValue = yValueMapper(data[i]);
+      final extraSpaceForPositiveBars =
+          (barValue != null && barValue >= 0) ? 20.0 : 0.0;
+      final tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
 
       // Check if tooltip was clamped (moved from original position)
       bool tooltipWasClamped = tooltipX != originalTooltipX;
@@ -636,6 +674,84 @@ class BarChartPainter<T> extends CustomPainter {
         canvas,
         Offset(tooltipX + (tooltipWidth - textPainter.width) / 2, tooltipY + 8),
       );
+
+      // Draw dot indicator on selected bar
+      final selectedValue = yValueMapper(data[i]);
+      if (selectedValue != null) {
+        // Calculate bar dimensions for the selected bar
+        final selectedBarLeft =
+            leftMargin +
+            barsMargin +
+            i * adjustedBarWidth +
+            adjustedBarWidth * 0.1;
+        final selectedBarRight = selectedBarLeft + adjustedBarWidth * 0.8;
+        final selectedBarCenter =
+            selectedBarLeft + (selectedBarRight - selectedBarLeft) / 2;
+
+        double selectedBarTop, selectedBarBottom;
+        if (selectedValue >= 0) {
+          // For positive values: bar goes from zero line up
+          selectedBarTop = sepY - ((selectedValue - 0) / yRange) * chartHeight;
+          selectedBarBottom = sepY;
+        } else {
+          // For negative values: bar goes from zero line down
+          selectedBarTop = sepY;
+          selectedBarBottom =
+              sepY + ((0 - selectedValue) / yRange) * chartHeight;
+        }
+
+        // Ensure bars stay within chart bounds
+        selectedBarTop = selectedBarTop.clamp(
+          topMargin + topBarGap,
+          topMargin + topBarGap + chartHeight,
+        );
+        selectedBarBottom = selectedBarBottom.clamp(
+          topMargin + topBarGap,
+          topMargin + topBarGap + chartHeight,
+        );
+
+        if (selectedBarBottom < selectedBarTop) {
+          final tmp = selectedBarTop;
+          selectedBarTop = selectedBarBottom;
+          selectedBarBottom = tmp;
+        }
+
+        // Determine dot position based on bar value
+        final dotY = selectedValue >= 0 ? selectedBarTop : selectedBarBottom;
+        final dotCenter = Offset(selectedBarCenter, dotY);
+
+        // Get bar color for the dot shadow
+        final barColor =
+            selectedValue >= 0
+                ? const Color(0xFF13861D)
+                : const Color(0xFFDF130C);
+
+        // Draw shadow (spread effect with 25% opacity)
+        final shadowPaint =
+            Paint()
+              ..color = barColor.withOpacity(0.25)
+              ..style = PaintingStyle.fill;
+        canvas.drawCircle(
+          dotCenter,
+          6.0,
+          shadowPaint,
+        ); // 4px radius + 2px spread = 6px total
+
+        // Draw main dot (4px diameter = 2px radius)
+        final dotPaint =
+            Paint()
+              ..color = Colors.white
+              ..style = PaintingStyle.fill;
+        canvas.drawCircle(dotCenter, 2.0, dotPaint);
+
+        // Draw border (0.4px black)
+        final borderPaint =
+            Paint()
+              ..color = Colors.black
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.4;
+        canvas.drawCircle(dotCenter, 2.0, borderPaint);
+      }
     }
   }
 

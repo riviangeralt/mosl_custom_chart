@@ -85,20 +85,20 @@ class _MyHomePageState extends State<MyHomePage> {
                   return yValue == null
                       ? "No data"
                       : yValue >= 0
-                          ? "₹${(yValue / 1000000).toStringAsFixed(1)}M"
-                          : "-₹${(yValue.abs() / 1000000).toStringAsFixed(1)}M";
+                      ? "₹${(yValue / 1000000).toStringAsFixed(1)}M"
+                      : "-₹${(yValue.abs() / 1000000).toStringAsFixed(1)}M";
                 },
-                tooltipDataFormatter: (ChartData data) {
-                  if (data.value == null) {
-                    return "Day ${data.day}\nNo data available";
-                  }
-                  final value = data.value!;
-                  final formattedValue =
-                      value >= 0
-                          ? "+₹${(value / 1000000).toStringAsFixed(1)}M"
-                          : "-₹${(value.abs() / 1000000).toStringAsFixed(1)}M";
-                  return "Day ${data.day}\nP&L: $formattedValue\nStatus: ${value >= 0 ? 'Profit' : 'Loss'}";
-                },
+                // tooltipDataFormatter: (ChartData data) {
+                //   if (data.value == null) {
+                //     return "Day ${data.day}\nNo data available";
+                //   }
+                //   final value = data.value!;
+                //   final formattedValue =
+                //       value >= 0
+                //           ? "+₹${(value / 1000000).toStringAsFixed(1)}M"
+                //           : "-₹${(value.abs() / 1000000).toStringAsFixed(1)}M";
+                //   return "Day ${data.day}\nP&L: $formattedValue\nStatus: ${value >= 0 ? 'Profit' : 'Loss'}";
+                // },
               ),
             ),
           ],

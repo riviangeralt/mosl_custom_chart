@@ -9,6 +9,7 @@ class CustomBarChart<T> extends StatefulWidget {
   final String Function(dynamic xValue)? xAxisLabelFormatter;
   final String Function(num yValue)? yAxisLabelFormatter;
   final String Function(T dataItem)? tooltipDataFormatter;
+  final double? barWidth;
 
   const CustomBarChart({
     super.key,
@@ -19,6 +20,7 @@ class CustomBarChart<T> extends StatefulWidget {
     this.xAxisLabelFormatter,
     this.yAxisLabelFormatter,
     this.tooltipDataFormatter,
+    this.barWidth,
   });
 
   @override
@@ -45,16 +47,60 @@ class _CustomBarChartState<T> extends State<CustomBarChart<T>> {
     final minY = widget.data
         .map((entry) => widget.yValueMapper(entry) ?? 0)
         .reduce((a, b) => a < b ? a : b);
-    final yRange = (maxY - minY).abs() == 0 ? 1 : (maxY - minY).abs();
 
-    const num yLabelCount = 5;
-    final num yLabelInterval = yRange / (yLabelCount - 1);
+    // Generate exactly 5 y-axis labels with 0 always included
+    List<num> yLabels = [];
+
+    if (minY >= 0) {
+      // Only positive values: create 5 evenly spaced labels from 0 to maxY
+      final step = maxY / 4;
+      for (int i = 0; i < 5; i++) {
+        yLabels.add(step * i);
+      }
+    } else if (maxY <= 0) {
+      // Only negative values: create 5 evenly spaced labels from minY to 0
+      final step = minY / 4;
+      for (int i = 4; i >= 0; i--) {
+        yLabels.add(step * i);
+      }
+    } else {
+      // Mixed positive and negative: distribute labels based on data proportion
+      final positiveRange = maxY;
+      final negativeRange = minY.abs();
+      final totalRange = positiveRange + negativeRange;
+
+      // Calculate how many labels to allocate to each side (excluding 0)
+      final positiveLabels = ((positiveRange / totalRange) * 4).round().clamp(
+        1,
+        3,
+      );
+      final negativeLabels = 4 - positiveLabels;
+
+      yLabels = [];
+
+      // Add negative labels
+      if (negativeLabels > 0) {
+        final negativeStep = minY / negativeLabels;
+        for (int i = negativeLabels; i >= 1; i--) {
+          yLabels.add(negativeStep * i);
+        }
+      }
+
+      // Add zero
+      yLabels.add(0);
+
+      // Add positive labels
+      if (positiveLabels > 0) {
+        final positiveStep = maxY / positiveLabels;
+        for (int i = 1; i <= positiveLabels; i++) {
+          yLabels.add(positiveStep * i);
+        }
+      }
+    }
 
     double maxLabelWidth = 0;
 
-    for (int i = 0; i < yLabelCount; i++) {
-      final yValue = minY + i * yLabelInterval;
-
+    for (final yValue in yLabels) {
       // Use formatter if provided, otherwise use default formatting
       final labelText =
           widget.yAxisLabelFormatter != null
@@ -75,8 +121,8 @@ class _CustomBarChartState<T> extends State<CustomBarChart<T>> {
           maxLabelWidth < textPainter.width ? textPainter.width : maxLabelWidth;
     }
 
-    // Add some padding (8px on each side)
-    return maxLabelWidth + 16.0;
+    // Add minimal padding (2px on each side)
+    return maxLabelWidth + 4.0;
   }
 
   @override
@@ -98,6 +144,7 @@ class _CustomBarChartState<T> extends State<CustomBarChart<T>> {
           yAxisLabelFormatter: widget.yAxisLabelFormatter,
           tooltipDataFormatter: widget.tooltipDataFormatter,
           leftMargin: _calculateLeftMargin(),
+          barWidth: widget.barWidth,
         ),
         child: Container(),
       ),
@@ -116,7 +163,7 @@ class _CustomBarChartState<T> extends State<CustomBarChart<T>> {
     final local = box.globalToLocal(globalPosition);
     final double leftMargin =
         _calculateLeftMargin(); // Dynamic left margin for y-axis labels
-    const double rightMargin = 20; // Smaller right margin
+    const double rightMargin = 0; // No right margin
     const double topMargin = 20;
     const double bottomMargin = 20;
     // Make spacing proportional to chart height instead of fixed values
@@ -136,12 +183,17 @@ class _CustomBarChartState<T> extends State<CustomBarChart<T>> {
         bottomBarGap -
         xAxisLabelHeight -
         bottomSpacing;
-    final double barWidth = chartWidth / widget.data.length;
 
-    // Add left and right margins for bars (each margin = width of one bar)
-    final double barsMargin = barWidth;
-    final double barsAreaWidth = chartWidth - 2 * barsMargin;
-    final double adjustedBarWidth = barsAreaWidth / widget.data.length;
+    // Use fixed bar width if provided, otherwise calculate dynamically
+    final double fixedBarWidth = widget.barWidth ?? 6.0;
+    final double totalBarsWidth = widget.data.length * fixedBarWidth;
+    final double totalSpacing = chartWidth - totalBarsWidth;
+    final double barSpacing =
+        widget.data.length > 1
+            ? totalSpacing /
+                (widget.data.length + 1) // Space between bars and margins
+            : totalSpacing / 2; // Center single bar
+    final double adjustedBarWidth = fixedBarWidth;
 
     final maxY = widget.data
         .map((e) => widget.yValueMapper(e) ?? 0)
@@ -156,11 +208,8 @@ class _CustomBarChartState<T> extends State<CustomBarChart<T>> {
     int? tappedIndex;
     for (int i = 0; i < widget.data.length; i++) {
       final barLeft =
-          leftMargin +
-          barsMargin +
-          i * adjustedBarWidth +
-          adjustedBarWidth * 0.1;
-      final barRight = barLeft + adjustedBarWidth * 0.8;
+          leftMargin + barSpacing + (i * (fixedBarWidth + barSpacing));
+      final barRight = barLeft + adjustedBarWidth;
       const tapBuffer = 10.0;
       bool isHit;
 
@@ -247,6 +296,7 @@ class BarChartPainter<T> extends CustomPainter {
   final String Function(num yValue)? yAxisLabelFormatter;
   final String Function(T dataItem)? tooltipDataFormatter;
   final double leftMargin;
+  final double? barWidth;
 
   BarChartPainter({
     required this.data,
@@ -257,12 +307,13 @@ class BarChartPainter<T> extends CustomPainter {
     this.yAxisLabelFormatter,
     this.tooltipDataFormatter,
     required this.leftMargin,
+    this.barWidth,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     // Use the dynamic left margin passed from the parent widget
-    const double rightMargin = 20; // Smaller right margin
+    const double rightMargin = 0; // No right margin
     const double topMargin = 20;
     const double bottomMargin = 20;
     // Make spacing proportional to chart height instead of fixed values
@@ -282,12 +333,21 @@ class BarChartPainter<T> extends CustomPainter {
         xAxisLabelHeight -
         bottomSpacing;
     double chartWidth = size.width - leftMargin - rightMargin;
-    double barWidth = chartWidth / data.length;
 
-    // Add left and right margins for bars (each margin = width of one bar)
-    final double barsMargin = barWidth;
-    final double barsAreaWidth = chartWidth - 2 * barsMargin;
-    final double adjustedBarWidth = barsAreaWidth / data.length;
+    // Use fixed bar width if provided, otherwise calculate dynamically
+    final double fixedBarWidth = barWidth ?? 6.0;
+    final double totalBarsWidth = data.length * fixedBarWidth;
+    final double totalSpacing = chartWidth - totalBarsWidth;
+    final double barSpacing =
+        data.length > 1
+            ? totalSpacing /
+                (data.length + 1) // Space between bars and margins
+            : totalSpacing / 2; // Center single bar
+    final double adjustedBarWidth = fixedBarWidth;
+
+    // For backward compatibility, keep old calculation for axis drawing
+    double barWidthOld = chartWidth / data.length;
+    final double barsMargin = barWidthOld;
 
     final maxY = data
         .map((entry) => yValueMapper(entry) ?? 0)
@@ -297,18 +357,67 @@ class BarChartPainter<T> extends CustomPainter {
         .reduce((a, b) => a < b ? a : b);
     final yRange = (maxY - minY).abs() == 0 ? 1 : (maxY - minY).abs();
 
-    // Calculate zero line position to properly distribute positive and negative values
-    // Zero line should be positioned proportionally based on where 0 falls in the range
-    final double sepY =
-        topMargin + topBarGap + (chartHeight * (maxY - 0) / yRange);
     // Draw y-axis labels
     final textStyle = TextStyle(color: Colors.black, fontSize: 12);
-    final num yLabelCount = 5;
-    final num yLabelInterval = yRange / (yLabelCount - 1);
-    for (int i = 0; i < yLabelCount; i++) {
-      final yValue = minY + i * yLabelInterval;
-      // Calculate position based on the value's position relative to zero
-      final yPos = sepY - ((yValue - 0) / yRange) * chartHeight;
+
+    // Generate exactly 5 y-axis labels with 0 always included - same logic as _calculateLeftMargin
+    List<num> yLabels = [];
+
+    if (minY >= 0) {
+      // Only positive values: create 5 evenly spaced labels from 0 to maxY
+      final step = maxY / 4;
+      for (int i = 0; i < 5; i++) {
+        yLabels.add(step * i);
+      }
+    } else if (maxY <= 0) {
+      // Only negative values: create 5 evenly spaced labels from minY to 0
+      final step = minY / 4;
+      for (int i = 4; i >= 0; i--) {
+        yLabels.add(step * i);
+      }
+    } else {
+      // Mixed positive and negative: distribute labels based on data proportion
+      final positiveRange = maxY;
+      final negativeRange = minY.abs();
+      final totalRange = positiveRange + negativeRange;
+
+      // Calculate how many labels to allocate to each side (excluding 0)
+      final positiveLabels = ((positiveRange / totalRange) * 4).round().clamp(
+        1,
+        3,
+      );
+      final negativeLabels = 4 - positiveLabels;
+
+      yLabels = [];
+
+      // Add negative labels
+      if (negativeLabels > 0) {
+        final negativeStep = minY / negativeLabels;
+        for (int i = negativeLabels; i >= 1; i--) {
+          yLabels.add(negativeStep * i);
+        }
+      }
+
+      // Add zero
+      yLabels.add(0);
+
+      // Add positive labels
+      if (positiveLabels > 0) {
+        final positiveStep = maxY / positiveLabels;
+        for (int i = 1; i <= positiveLabels; i++) {
+          yLabels.add(positiveStep * i);
+        }
+      }
+    }
+
+    // Calculate zero line position based on actual data range (for both bars and labels)
+    final double sepY =
+        topMargin + topBarGap + (chartHeight * (maxY - 0) / yRange);
+
+    for (final yValue in yLabels) {
+      // Calculate position based on the actual data range (same as bars)
+      final yPos =
+          topMargin + topBarGap + (chartHeight * (maxY - yValue) / yRange);
 
       // Ensure y position is within chart bounds
       if (yPos >= topMargin + topBarGap &&
@@ -325,15 +434,13 @@ class BarChartPainter<T> extends CustomPainter {
           text: textSpan,
           textAlign: TextAlign.right,
           textDirection: TextDirection.ltr,
-        )..layout(
-          maxWidth: leftMargin - 8,
-        ); // Ensure labels fit within left margin
+        )..layout(maxWidth: leftMargin - 2); // Minimal right margin for labels
         textPainter.paint(
           canvas,
           Offset(
-            4,
+            1,
             yPos - textPainter.height / 2,
-          ), // Position labels within left margin
+          ), // Minimal left padding for labels
         );
       }
     }
@@ -362,9 +469,9 @@ class BarChartPainter<T> extends CustomPainter {
       for (int i = 0; i < data.length; i += stepSize) {
         final xPos =
             leftMargin +
-            barsMargin +
-            i * adjustedBarWidth +
-            adjustedBarWidth / 2;
+            barSpacing +
+            (i * (fixedBarWidth + barSpacing)) +
+            fixedBarWidth / 2;
         final xValue = xValueMapper(data[i]);
 
         // Use formatter if provided, otherwise use default formatting
@@ -398,7 +505,7 @@ class BarChartPainter<T> extends CustomPainter {
           ..strokeWidth = 1;
     canvas.drawLine(
       Offset(leftMargin + barsMargin, sepY),
-      Offset(size.width - rightMargin - barsMargin, sepY),
+      Offset(size.width, sepY),
       axisPaint,
     );
 
@@ -406,11 +513,8 @@ class BarChartPainter<T> extends CustomPainter {
     for (int i = 0; i < data.length; i++) {
       final value = yValueMapper(data[i]);
       final barLeft =
-          leftMargin +
-          barsMargin +
-          i * adjustedBarWidth +
-          adjustedBarWidth * 0.1;
-      final barRight = barLeft + adjustedBarWidth * 0.8;
+          leftMargin + barSpacing + (i * (fixedBarWidth + barSpacing));
+      final barRight = barLeft + adjustedBarWidth;
       double barTop, barBottom;
       if (value == null) {
         // Draw small grey bar for null values
@@ -476,11 +580,8 @@ class BarChartPainter<T> extends CustomPainter {
     if (selectedBar != null) {
       final i = selectedBar!;
       final barLeft =
-          leftMargin +
-          barsMargin +
-          i * adjustedBarWidth +
-          adjustedBarWidth * 0.1;
-      final barRight = barLeft + adjustedBarWidth * 0.8;
+          leftMargin + barSpacing + (i * (fixedBarWidth + barSpacing));
+      final barRight = barLeft + adjustedBarWidth;
       final barCenter = barLeft + (barRight - barLeft) / 2;
 
       // Draw dotted vertical line
@@ -702,11 +803,8 @@ class BarChartPainter<T> extends CustomPainter {
       if (selectedValue != null) {
         // Calculate bar dimensions for the selected bar
         final selectedBarLeft =
-            leftMargin +
-            barsMargin +
-            i * adjustedBarWidth +
-            adjustedBarWidth * 0.1;
-        final selectedBarRight = selectedBarLeft + adjustedBarWidth * 0.8;
+            leftMargin + barSpacing + (i * (fixedBarWidth + barSpacing));
+        final selectedBarRight = selectedBarLeft + adjustedBarWidth;
         final selectedBarCenter =
             selectedBarLeft + (selectedBarRight - selectedBarLeft) / 2;
 

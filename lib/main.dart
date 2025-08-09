@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_graphic_chart/custom_bar_chart.dart';
+import 'dart:math';
 
 void main() {
   runApp(const MyApp());
@@ -36,18 +37,22 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  List<ChartData> get chartData => [
-    for (int i = 0; i < 31; i++)
-      ChartData(
-        i + 1,
-        i % 7 ==
-                6 // Set value to null for every 7th day (e.g., Day 7, 14, 21, 28)
-            ? null
-            : i % 5 == 0
-            ? 5000
-            : (i % 2 == 0 ? 20000000 : -20000000) * (i % 3 + 1) / 3,
-      ),
-  ];
+ final Random _rnd = Random();
+
+List<ChartData> get chartData => [
+  for (int i = 0; i < 10; i++)
+    ChartData(
+      i + 1,
+      i % 7 == 6 // keep null every 7th day
+          ? null
+          : (() {
+              // random magnitude between 1,000 and 20,000,000
+              double magnitude = 1000 + _rnd.nextDouble() * (20000000 - 1000);
+              // randomly decide positive or negative
+              return _rnd.nextBool() ? magnitude : -magnitude;
+            })(),
+    ),
+];
 
   @override
   Widget build(BuildContext context) {
@@ -69,11 +74,12 @@ class _MyHomePageState extends State<MyHomePage> {
             const SizedBox(height: 20),
             SizedBox(
               height:
-                  480, // Increased from 400 to 480 to show the bottom spacing
+                  300, // Decreased from 400 to 300 to show the bottom spacing
               child: CustomBarChart<ChartData>(
                 data: chartData,
                 xValueMapper: (chartDataType) => chartDataType.day,
                 yValueMapper: (chartDataType) => chartDataType.value,
+                barWidth: 6.0, // Fixed bar width at 6px
                 onSelectionChanged: (int? selectedIndex) {
                   print('Chart selection changed: $selectedIndex');
                 },

@@ -239,14 +239,55 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
     }
 
     // Filter out labels that are too close to boundaries or zero to prevent overlap
-    const double minDistanceFromZero =
-        0.1; // Minimum relative distance from zero
-    const double minDistanceFromBoundary =
-        0.05; // Minimum relative distance from min/max
     final double yRange =
         ((maxY - minY).abs() == 0 ? 1 : (maxY - minY).abs()).toDouble();
-    final double zeroThreshold = yRange * minDistanceFromZero;
-    final double boundaryThreshold = yRange * minDistanceFromBoundary;
+
+    // Smart label filtering to prevent overlap
+    if (minY < 0 && maxY > 0) {
+      // Mixed range: check if negative/positive absolute max is less than first label on opposite side
+      final positiveLabels =
+          yLabels.where((label) => label > 0).toList()..sort();
+      final negativeLabels =
+          yLabels.where((label) => label < 0).toList()..sort(
+            (a, b) => b.compareTo(a),
+          ); // Sort descending (closest to zero first)
+
+      // If negative absolute max is less than first positive label, remove negative labels and redistribute
+      if (negativeLabels.isNotEmpty && positiveLabels.isNotEmpty) {
+        final negativeAbsMax = minY.abs();
+        final firstPositiveLabel = positiveLabels.first;
+
+        if (negativeAbsMax < firstPositiveLabel) {
+          // Remove negative labels and create 5 evenly spaced positive labels (including 0)
+          yLabels = [];
+          final step =
+              maxY /
+              4; // 4 steps to create 5 labels (0, step, 2*step, 3*step, 4*step)
+          for (int i = 0; i < 5; i++) {
+            yLabels.add(i * step);
+          }
+        }
+      }
+
+      // If positive absolute max is less than first negative label (in absolute terms), remove positive labels and redistribute
+      if (positiveLabels.isNotEmpty && negativeLabels.isNotEmpty) {
+        final positiveAbsMax = maxY.abs();
+        final firstNegativeLabelAbs = negativeLabels.first.abs();
+
+        if (positiveAbsMax < firstNegativeLabelAbs) {
+          // Remove positive labels and create 5 evenly spaced negative labels (including 0)
+          yLabels = [];
+          final step =
+              minY /
+              4; // 4 steps to create 5 labels (0, step, 2*step, 3*step, 4*step)
+          for (int i = 0; i < 5; i++) {
+            yLabels.add(i * step);
+          }
+        }
+      }
+    }
+
+    final double boundaryThreshold = yRange * 0.05; // 5% for boundaries
 
     yLabels =
         yLabels.where((label) {
@@ -255,9 +296,6 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
 
           // Always keep zero if it's exactly 0 and within range
           if (label == 0 && includeZero) return true;
-
-          // Remove labels too close to zero (but not zero itself)
-          if (label != 0 && label.abs() < zeroThreshold) return false;
 
           // Remove labels too close to boundaries
           if ((label - minY).abs() < boundaryThreshold && label != minY)
@@ -673,12 +711,52 @@ class BarChartPainter<T> extends CustomPainter {
     }
 
     // Filter out labels that are too close to boundaries or zero to prevent overlap
-    const double minDistanceFromZero =
-        0.1; // Minimum relative distance from zero
-    const double minDistanceFromBoundary =
-        0.05; // Minimum relative distance from min/max
-    final double boundaryThreshold = yRange * minDistanceFromBoundary;
-    final double zeroThreshold = yRange * minDistanceFromZero;
+    final double boundaryThreshold = yRange * 0.05; // 5% for boundaries
+
+    // Smart label filtering to prevent overlap
+    if (chartMinY < 0 && chartMaxY > 0) {
+      // Mixed range: check if negative/positive absolute max is less than first label on opposite side
+      final positiveLabels =
+          yLabels.where((label) => label > 0).toList()..sort();
+      final negativeLabels =
+          yLabels.where((label) => label < 0).toList()..sort(
+            (a, b) => b.compareTo(a),
+          ); // Sort descending (closest to zero first)
+
+      // If negative absolute max is less than first positive label, remove negative labels and redistribute
+      if (negativeLabels.isNotEmpty && positiveLabels.isNotEmpty) {
+        final negativeAbsMax = chartMinY.abs();
+        final firstPositiveLabel = positiveLabels.first;
+
+        if (negativeAbsMax < firstPositiveLabel) {
+          // Remove negative labels and create 5 evenly spaced positive labels (including 0)
+          yLabels = [];
+          final step =
+              chartMaxY /
+              4; // 4 steps to create 5 labels (0, step, 2*step, 3*step, 4*step)
+          for (int i = 0; i < 5; i++) {
+            yLabels.add(i * step);
+          }
+        }
+      }
+
+      // If positive absolute max is less than first negative label (in absolute terms), remove positive labels and redistribute
+      if (positiveLabels.isNotEmpty && negativeLabels.isNotEmpty) {
+        final positiveAbsMax = chartMaxY.abs();
+        final firstNegativeLabelAbs = negativeLabels.first.abs();
+
+        if (positiveAbsMax < firstNegativeLabelAbs) {
+          // Remove positive labels and create 5 evenly spaced negative labels (including 0)
+          yLabels = [];
+          final step =
+              chartMinY /
+              4; // 4 steps to create 5 labels (0, step, 2*step, 3*step, 4*step)
+          for (int i = 0; i < 5; i++) {
+            yLabels.add(i * step);
+          }
+        }
+      }
+    }
 
     yLabels =
         yLabels.where((label) {
@@ -687,9 +765,6 @@ class BarChartPainter<T> extends CustomPainter {
 
           // Always keep zero if it's exactly 0 and within range
           if (label == 0 && includeZero) return true;
-
-          // Remove labels too close to zero (but not zero itself)
-          if (label != 0 && label.abs() < zeroThreshold) return false;
 
           // Remove labels too close to boundaries
           if ((label - chartMinY).abs() < boundaryThreshold &&

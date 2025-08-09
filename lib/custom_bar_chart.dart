@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-class CustomBarChart<T> extends StatefulWidget {
+class MoCustomBarChart<T> extends StatefulWidget {
   final List<T> data;
   final dynamic Function(T chartDataType) xValueMapper;
   final num? Function(T chartDataType) yValueMapper;
@@ -11,7 +11,7 @@ class CustomBarChart<T> extends StatefulWidget {
   final String Function(T dataItem)? tooltipDataFormatter;
   final double? barWidth;
 
-  const CustomBarChart({
+  const MoCustomBarChart({
     super.key,
     required this.data,
     required this.xValueMapper,
@@ -24,10 +24,10 @@ class CustomBarChart<T> extends StatefulWidget {
   });
 
   @override
-  State<CustomBarChart<T>> createState() => _CustomBarChartState<T>();
+  State<MoCustomBarChart<T>> createState() => _MoCustomBarChartState<T>();
 }
 
-class _CustomBarChartState<T> extends State<CustomBarChart<T>> {
+class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
   int? _selectedBar;
   Timer? _autoCloseTimer;
 
@@ -345,10 +345,6 @@ class BarChartPainter<T> extends CustomPainter {
             : totalSpacing / 2; // Center single bar
     final double adjustedBarWidth = fixedBarWidth;
 
-    // For backward compatibility, keep old calculation for axis drawing
-    double barWidthOld = chartWidth / data.length;
-    final double barsMargin = barWidthOld;
-
     final maxY = data
         .map((entry) => yValueMapper(entry) ?? 0)
         .reduce((a, b) => a > b ? a : b);
@@ -504,8 +500,8 @@ class BarChartPainter<T> extends CustomPainter {
           ..color = const Color(0xFFE4E4E7)
           ..strokeWidth = 1;
     canvas.drawLine(
-      Offset(leftMargin + barsMargin, sepY),
-      Offset(size.width, sepY),
+      Offset(leftMargin, sepY),
+      Offset(leftMargin + chartWidth, sepY),
       axisPaint,
     );
 
@@ -700,11 +696,11 @@ class BarChartPainter<T> extends CustomPainter {
       // Calculate initial tooltip position (try to align arrow at 25% with bar center)
       double tooltipX = barCenter - tooltipWidth * 0.25;
 
-      // Clamp tooltip to stay within screen bounds
+      // Clamp tooltip to stay within widget bounds
       double originalTooltipX = tooltipX;
       tooltipX = tooltipX.clamp(
         leftMargin,
-        size.width - rightMargin - tooltipWidth,
+        leftMargin + chartWidth - tooltipWidth,
       );
 
       // Add extra space between positive bars and tooltip

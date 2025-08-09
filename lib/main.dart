@@ -75,7 +75,7 @@ List<ChartData> get chartData => [
             SizedBox(
               height:
                   300, // Decreased from 400 to 300 to show the bottom spacing
-              child: CustomBarChart<ChartData>(
+              child: MoCustomBarChart<ChartData>(
                 data: chartData,
                 xValueMapper: (chartDataType) => chartDataType.day,
                 yValueMapper: (chartDataType) => chartDataType.value,

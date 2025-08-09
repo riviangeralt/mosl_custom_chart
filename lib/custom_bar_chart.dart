@@ -82,8 +82,8 @@ class MoCustomBarChart<T> extends StatefulWidget {
   final num? Function(T chartDataType) yValueMapper;
   final Function(int? selectedIndex)? onSelectionChanged;
   final Function(T dataItem)? onBarTap;
-  final String Function(dynamic xValue)? xAxisLabelFormatter;
-  final String Function(num yValue)? yAxisLabelFormatter;
+  final TextSpan Function(dynamic xValue)? xAxisLabelStyleFormatter;
+  final TextSpan Function(dynamic yValue)? yAxisLabelStyleFormatter;
   final List<TextSpan> Function(T dataItem)? tooltipDataFormatter;
   final double? barWidth;
   final int? maxXLabels; // Maximum number of x-axis labels to display
@@ -99,8 +99,8 @@ class MoCustomBarChart<T> extends StatefulWidget {
     required this.yValueMapper,
     this.onSelectionChanged,
     this.onBarTap,
-    this.xAxisLabelFormatter,
-    this.yAxisLabelFormatter,
+    this.xAxisLabelStyleFormatter,
+    this.yAxisLabelStyleFormatter,
     this.tooltipDataFormatter,
     this.barWidth,
     this.maxXLabels,
@@ -309,16 +309,21 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
     double maxLabelWidth = 0;
 
     for (final yValue in yLabels) {
-      // Use formatter if provided, otherwise use default formatting
-      final labelText =
-          widget.yAxisLabelFormatter != null
-              ? widget.yAxisLabelFormatter!(yValue)
-              : yValue.toStringAsFixed(0);
+      // Use style formatter if provided, otherwise use default formatting
+      TextSpan textSpan;
+      if (widget.yAxisLabelStyleFormatter != null) {
+        textSpan = widget.yAxisLabelStyleFormatter!(yValue);
+      } else {
+        textSpan = TextSpan(
+          text: yValue.toStringAsFixed(0),
+          style: TextStyle(
+            color: Color(0xFF909094),
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        );
+      }
 
-      final textSpan = TextSpan(
-        text: labelText,
-        style: TextStyle(color: Colors.black, fontSize: 12),
-      );
       final textPainter = TextPainter(
         text: textSpan,
         textAlign: TextAlign.right,
@@ -364,8 +369,8 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
           selectedBar: _selectedBar,
           xValueMapper: widget.xValueMapper,
           yValueMapper: widget.yValueMapper,
-          xAxisLabelFormatter: widget.xAxisLabelFormatter,
-          yAxisLabelFormatter: widget.yAxisLabelFormatter,
+          xAxisLabelStyleFormatter: widget.xAxisLabelStyleFormatter,
+          yAxisLabelStyleFormatter: widget.yAxisLabelStyleFormatter,
           tooltipDataFormatter: widget.tooltipDataFormatter,
           leftMargin: _calculateLeftMargin(),
           barWidth: widget.barWidth,
@@ -574,8 +579,8 @@ class BarChartPainter<T> extends CustomPainter {
   final int? selectedBar;
   final dynamic Function(T chartDataType) xValueMapper;
   final num? Function(T chartDataType) yValueMapper;
-  final String Function(dynamic xValue)? xAxisLabelFormatter;
-  final String Function(num yValue)? yAxisLabelFormatter;
+  final TextSpan Function(dynamic xValue)? xAxisLabelStyleFormatter;
+  final TextSpan Function(dynamic yValue)? yAxisLabelStyleFormatter;
   final List<TextSpan> Function(T dataItem)? tooltipDataFormatter;
   final double leftMargin;
   final double? barWidth;
@@ -588,8 +593,8 @@ class BarChartPainter<T> extends CustomPainter {
     this.selectedBar,
     required this.xValueMapper,
     required this.yValueMapper,
-    this.xAxisLabelFormatter,
-    this.yAxisLabelFormatter,
+    this.xAxisLabelStyleFormatter,
+    this.yAxisLabelStyleFormatter,
     this.tooltipDataFormatter,
     required this.leftMargin,
     this.barWidth,
@@ -653,7 +658,11 @@ class BarChartPainter<T> extends CustomPainter {
         (chartMaxY - chartMinY).abs() == 0 ? 1 : (chartMaxY - chartMinY).abs();
 
     // Draw y-axis labels
-    final textStyle = TextStyle(color: Colors.black, fontSize: 12);
+    final textStyle = TextStyle(
+      color: Color(0xFF909094),
+      fontSize: 10,
+      fontWeight: FontWeight.bold,
+    );
 
     // Generate exactly 5 y-axis labels with smart 0 handling - same logic as _calculateLeftMargin
     List<num> yLabels = [];
@@ -789,13 +798,17 @@ class BarChartPainter<T> extends CustomPainter {
       // Ensure y position is within chart bounds
       if (yPos >= topMargin + topBarGap &&
           yPos <= topMargin + topBarGap + chartHeight) {
-        // Use formatter if provided, otherwise use default formatting
-        final labelText =
-            yAxisLabelFormatter != null
-                ? yAxisLabelFormatter!(yValue)
-                : yValue.toStringAsFixed(0);
-
-        final textSpan = TextSpan(text: labelText, style: textStyle);
+        // Use style formatter if provided, otherwise use default formatting
+        TextSpan textSpan;
+        if (yAxisLabelStyleFormatter != null) {
+          // Find a data item that matches this Y value or use a default approach
+          textSpan = yAxisLabelStyleFormatter!(yValue);
+        } else {
+          textSpan = TextSpan(
+            text: yValue.toStringAsFixed(0),
+            style: textStyle,
+          );
+        }
 
         final textPainter = TextPainter(
           text: textSpan,
@@ -816,10 +829,7 @@ class BarChartPainter<T> extends CustomPainter {
     if (data.isNotEmpty) {
       // Calculate how many labels can fit without overlapping
       final sampleXValue = xValueMapper(data[0]);
-      final sampleLabelText =
-          xAxisLabelFormatter != null
-              ? xAxisLabelFormatter!(sampleXValue)
-              : '$sampleXValue';
+      final sampleLabelText = '$sampleXValue'; // Default formatting
 
       // Estimate label width (approximate: character count * 7 + padding)
       final estimatedLabelWidth =
@@ -850,14 +860,21 @@ class BarChartPainter<T> extends CustomPainter {
             fixedBarWidth / 2;
         final xValue = xValueMapper(data[i]);
 
-        // Use formatter if provided, otherwise use default formatting
-        final labelText =
-            xAxisLabelFormatter != null
-                ? xAxisLabelFormatter!(xValue)
-                : '$xValue';
+        // Use style formatter if provided, otherwise use default formatting
+        TextSpan textSpan;
+        if (xAxisLabelStyleFormatter != null) {
+          textSpan = xAxisLabelStyleFormatter!(xValue);
+        } else {
+          textSpan = TextSpan(
+            text: '$xValue',
+            style: TextStyle(
+              color: Color(0xFF909094),
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          );
+        }
 
-        // make text take width of content
-        final textSpan = TextSpan(text: labelText, style: textStyle);
         final xAxisLabelWidth =
             textSpan.toPlainText().length * 7.0; // Approximate width
         final textPainter = TextPainter(
@@ -993,8 +1010,6 @@ class BarChartPainter<T> extends CustomPainter {
           dataItem,
           xValueMapper,
           yValueMapper,
-          xAxisLabelFormatter,
-          yAxisLabelFormatter,
         );
       }
 
@@ -1258,22 +1273,12 @@ class BarChartPainter<T> extends CustomPainter {
     T dataItem,
     dynamic Function(T) xValueMapper,
     num? Function(T) yValueMapper,
-    String Function(dynamic)? xAxisLabelFormatter,
-    String Function(num)? yAxisLabelFormatter,
   ) {
     final xValue = xValueMapper(dataItem);
     final yValue = yValueMapper(dataItem);
 
-    final xLabelText =
-        xAxisLabelFormatter != null
-            ? xAxisLabelFormatter(xValue)
-            : 'Day $xValue';
-    final yLabelText =
-        yValue == null
-            ? 'No Data'
-            : (yAxisLabelFormatter != null
-                ? yAxisLabelFormatter(yValue)
-                : '$yValue');
+    final xLabelText = 'Day $xValue';
+    final yLabelText = yValue == null ? 'No Data' : '$yValue';
 
     return [
       TextSpan(
@@ -1305,8 +1310,8 @@ class BarChartPainter<T> extends CustomPainter {
         oldDelegate.xValueMapper != xValueMapper ||
         oldDelegate.yValueMapper != yValueMapper;
     final bool formattersChanged =
-        oldDelegate.xAxisLabelFormatter != xAxisLabelFormatter ||
-        oldDelegate.yAxisLabelFormatter != yAxisLabelFormatter ||
+        oldDelegate.xAxisLabelStyleFormatter != xAxisLabelStyleFormatter ||
+        oldDelegate.yAxisLabelStyleFormatter != yAxisLabelStyleFormatter ||
         oldDelegate.tooltipDataFormatter != tooltipDataFormatter;
     final bool layoutChanged =
         oldDelegate.leftMargin != leftMargin ||

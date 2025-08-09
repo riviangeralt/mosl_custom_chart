@@ -1,11 +1,59 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
+
+// Custom gesture recognizer that has priority over other gestures
+class _CustomPanGestureRecognizer extends OneSequenceGestureRecognizer {
+  final Function(Offset)? onPointerDown;
+  final Function(Offset)? onPointerMove;
+  final Function()? onPointerUp;
+
+  _CustomPanGestureRecognizer({
+    this.onPointerDown,
+    this.onPointerMove,
+    this.onPointerUp,
+  });
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    // Immediately resolve to win the gesture arena
+    resolve(GestureDisposition.accepted);
+    onPointerDown?.call(event.position);
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event is PointerMoveEvent) {
+      onPointerMove?.call(event.position);
+    } else if (event is PointerUpEvent || event is PointerCancelEvent) {
+      onPointerUp?.call();
+      resolve(GestureDisposition.accepted);
+    }
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {
+    // Always accept the gesture to prevent other recognizers from handling it
+    resolve(GestureDisposition.accepted);
+  }
+
+  @override
+  String get debugDescription => 'CustomPanGestureRecognizer';
+
+  @override
+  void rejectGesture(int pointer) {
+    // Override to prevent rejection - we always want to win
+    acceptGesture(pointer);
+  }
+}
 
 class MoCustomBarChart<T> extends StatefulWidget {
   final List<T> data;
   final dynamic Function(T chartDataType) xValueMapper;
   final num? Function(T chartDataType) yValueMapper;
   final Function(int? selectedIndex)? onSelectionChanged;
+  final Function(T dataItem)? onBarTap;
   final String Function(dynamic xValue)? xAxisLabelFormatter;
   final String Function(num yValue)? yAxisLabelFormatter;
   final String Function(T dataItem)? tooltipDataFormatter;
@@ -17,6 +65,7 @@ class MoCustomBarChart<T> extends StatefulWidget {
     required this.xValueMapper,
     required this.yValueMapper,
     this.onSelectionChanged,
+    this.onBarTap,
     this.xAxisLabelFormatter,
     this.yAxisLabelFormatter,
     this.tooltipDataFormatter,
@@ -30,6 +79,8 @@ class MoCustomBarChart<T> extends StatefulWidget {
 class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
   int? _selectedBar;
   Timer? _autoCloseTimer;
+  bool _isInteracting =
+      false; // Track if user is actively interacting with chart
 
   @override
   void dispose() {
@@ -127,14 +178,34 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanStart: (details) {
-        _updateSelection(details.globalPosition, context, isTap: true);
-      },
-      onPanUpdate: (details) {
-        _updateSelection(details.globalPosition, context, isTap: false);
+    return RawGestureDetector(
+      gestures: <Type, GestureRecognizerFactory>{
+        // Custom pan recognizer that wins over TabBar and other gesture recognizers
+        _CustomPanGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<_CustomPanGestureRecognizer>(
+              () => _CustomPanGestureRecognizer(
+                onPointerDown: (offset) {
+                  setState(() {
+                    _isInteracting = true;
+                  });
+                  _updateSelection(offset, context, isTap: true);
+                },
+                onPointerMove: (offset) {
+                  if (_isInteracting) {
+                    _updateSelection(offset, context, isTap: false);
+                  }
+                },
+                onPointerUp: () {
+                  setState(() {
+                    _isInteracting = false;
+                  });
+                },
+              ),
+              (_CustomPanGestureRecognizer instance) {},
+            ),
       },
       child: CustomPaint(
+        size: Size.infinite,
         painter: BarChartPainter<T>(
           data: widget.data,
           selectedBar: _selectedBar,
@@ -146,7 +217,11 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
           leftMargin: _calculateLeftMargin(),
           barWidth: widget.barWidth,
         ),
-        child: Container(),
+        child: Container(
+          width: double.infinity,
+          height: double.infinity,
+          color: Colors.transparent,
+        ),
       ),
     );
   }
@@ -161,6 +236,7 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
 
     RenderBox box = context.findRenderObject() as RenderBox;
     final local = box.globalToLocal(globalPosition);
+
     final double leftMargin =
         _calculateLeftMargin(); // Dynamic left margin for y-axis labels
     const double rightMargin = 0; // No right margin
@@ -252,26 +328,30 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
             local.dy >= barTop - tapBuffer &&
             local.dy <= barBottom + tapBuffer;
       } else {
-        // For swipe, check only x-coordinate
+        // For pan gestures, use more lenient x-coordinate based detection
+        // and allow the entire chart height for easier gesture handling
         isHit =
-            local.dx >= barLeft - tapBuffer && local.dx <= barRight + tapBuffer;
+            local.dx >= barLeft - tapBuffer &&
+            local.dx <= barRight + tapBuffer &&
+            local.dy >= topMargin + topBarGap &&
+            local.dy <= topMargin + topBarGap + chartHeight;
       }
 
       if (isHit) {
-        print(
-          'Selected bar $i: value=${widget.yValueMapper(widget.data[i]) ?? 'null'}, '
-          'left=$barLeft, right=$barRight, tap=(${local.dx}, ${local.dy}), isTap=$isTap',
-        );
         tappedIndex = i;
         break;
       }
     }
-    print('Selected bar index: $tappedIndex');
 
     setState(() {
       _selectedBar = tappedIndex;
       // Call the callback if provided
       widget.onSelectionChanged?.call(tappedIndex);
+
+      // Call onBarTap for initial tap only
+      if (isTap && tappedIndex != null) {
+        widget.onBarTap?.call(widget.data[tappedIndex]);
+      }
 
       // Start timer only if a bar is selected
       if (tappedIndex != null) {
@@ -279,7 +359,6 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
           setState(() {
             _selectedBar = null;
             widget.onSelectionChanged?.call(null);
-            print('Auto-closed selection after 3 seconds');
           });
         });
       }
@@ -626,26 +705,18 @@ class BarChartPainter<T> extends CustomPainter {
       final selectedBarValue = yValueMapper(data[i]);
       double lineStartY;
       double lineEndY;
+      double tooltipY;
 
       if (selectedBarValue != null && selectedBarValue >= 0) {
         // For positive bars: line goes from tooltip arrow to x-axis (zero line)
-        // Calculate tooltip position to connect the line
-        final barValue = yValueMapper(data[i]);
-        final extraSpaceForPositiveBars =
-            (barValue != null && barValue >= 0) ? 20.0 : 0.0;
-        final tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
-        // Use actual calculated tooltip height + arrow height
+        final extraSpaceForPositiveBars = 20.0;
+        tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
         lineStartY =
             tooltipY + actualTooltipHeight + 10; // Start from arrow tip
         lineEndY = sepY;
       } else if (selectedBarValue != null && selectedBarValue < 0) {
         // For negative bars: line goes from tooltip arrow to end of negative bar
-        // Calculate tooltip position to connect the line
-        final barValue = yValueMapper(data[i]);
-        final extraSpaceForPositiveBars =
-            (barValue != null && barValue >= 0) ? 20.0 : 0.0;
-        final tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
-        // Use actual calculated tooltip height + arrow height
+        tooltipY = topMargin - 4; // No extra space for negative bars
         lineStartY =
             tooltipY + actualTooltipHeight + 10; // Start from arrow tip
         double negativeBarBottom =
@@ -657,17 +728,15 @@ class BarChartPainter<T> extends CustomPainter {
         );
         lineEndY = negativeBarBottom;
       } else {
-        // For null values: line goes from tooltip arrow to x-axis
-        // Calculate tooltip position to connect the line
-        final barValue = yValueMapper(data[i]);
-        final extraSpaceForPositiveBars =
-            (barValue != null && barValue >= 0) ? 20.0 : 0.0;
-        final tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
-        // Use actual calculated tooltip height + arrow height
+        // For null values: line goes from tooltip arrow to x-axis (zero line)
+        tooltipY = topMargin - 4; // No extra space for null values
         lineStartY =
             tooltipY + actualTooltipHeight + 10; // Start from arrow tip
-        lineEndY = sepY;
+        lineEndY = sepY; // End at zero line for null values
       }
+
+      // Ensure tooltip doesn't go above the widget bounds
+      tooltipY = tooltipY.clamp(0.0, double.infinity);
 
       // Draw dashes from calculated start to end position
       final dashHeight = 5;
@@ -702,12 +771,6 @@ class BarChartPainter<T> extends CustomPainter {
         leftMargin,
         leftMargin + chartWidth - tooltipWidth,
       );
-
-      // Add extra space between positive bars and tooltip
-      final barValue = yValueMapper(data[i]);
-      final extraSpaceForPositiveBars =
-          (barValue != null && barValue >= 0) ? 20.0 : 0.0;
-      final tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
 
       // Check if tooltip was clamped (moved from original position)
       bool tooltipWasClamped = tooltipX != originalTooltipX;

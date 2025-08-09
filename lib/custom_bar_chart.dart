@@ -1020,10 +1020,13 @@ class BarChartPainter<T> extends CustomPainter {
         textAlign: TextAlign.left,
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: 200.0);
-      final actualTooltipHeight = textPainter.height + 16; // Dynamic height
+      final actualTooltipHeight =
+          textPainter.height + 8; // Dynamic height with 4px top + 4px bottom
 
       // Calculate tooltip width: min 100px, max 200px, content-based in between
-      final contentWidth = textPainter.width + 16; // Add padding
+      final contentWidth =
+          textPainter.width +
+          16; // Add horizontal padding (8px left + 8px right)
       final actualTooltipWidth =
           contentWidth < 100.0
               ? 100.0 // Minimum width of 100px
@@ -1120,28 +1123,28 @@ class BarChartPainter<T> extends CustomPainter {
       final tooltipWithArrowPath = Path();
 
       // Start from top-left corner with radius
-      tooltipWithArrowPath.moveTo(tooltipX + 8, tooltipY);
+      tooltipWithArrowPath.moveTo(tooltipX + 4, tooltipY);
 
       // Top edge
-      tooltipWithArrowPath.lineTo(tooltipX + tooltipWidth - 8, tooltipY);
+      tooltipWithArrowPath.lineTo(tooltipX + tooltipWidth - 4, tooltipY);
 
       // Top-right corner
       tooltipWithArrowPath.arcToPoint(
-        Offset(tooltipX + tooltipWidth, tooltipY + 8),
-        radius: Radius.circular(8),
+        Offset(tooltipX + tooltipWidth, tooltipY + 4),
+        radius: Radius.circular(4),
         clockwise: true,
       );
 
       // Right edge
       tooltipWithArrowPath.lineTo(
         tooltipX + tooltipWidth,
-        tooltipY + tooltipHeight - 8,
+        tooltipY + tooltipHeight - 4,
       );
 
       // Bottom-right corner
       tooltipWithArrowPath.arcToPoint(
-        Offset(tooltipX + tooltipWidth - 8, tooltipY + tooltipHeight),
-        radius: Radius.circular(8),
+        Offset(tooltipX + tooltipWidth - 4, tooltipY + tooltipHeight),
+        radius: Radius.circular(4),
         clockwise: true,
       );
 
@@ -1164,22 +1167,22 @@ class BarChartPainter<T> extends CustomPainter {
       );
 
       // Continue bottom edge to left
-      tooltipWithArrowPath.lineTo(tooltipX + 8, tooltipY + tooltipHeight);
+      tooltipWithArrowPath.lineTo(tooltipX + 4, tooltipY + tooltipHeight);
 
       // Bottom-left corner
       tooltipWithArrowPath.arcToPoint(
-        Offset(tooltipX, tooltipY + tooltipHeight - 8),
-        radius: Radius.circular(8),
+        Offset(tooltipX, tooltipY + tooltipHeight - 4),
+        radius: Radius.circular(4),
         clockwise: true,
       );
 
       // Left edge
-      tooltipWithArrowPath.lineTo(tooltipX, tooltipY + 8);
+      tooltipWithArrowPath.lineTo(tooltipX, tooltipY + 4);
 
       // Top-left corner
       tooltipWithArrowPath.arcToPoint(
-        Offset(tooltipX + 8, tooltipY),
-        radius: Radius.circular(8),
+        Offset(tooltipX + 4, tooltipY),
+        radius: Radius.circular(4),
         clockwise: true,
       );
 
@@ -1211,7 +1214,10 @@ class BarChartPainter<T> extends CustomPainter {
       // Draw text on top (left-aligned)
       textPainter.paint(
         canvas,
-        Offset(tooltipX + 8, tooltipY + 8), // Left-aligned with 8px padding
+        Offset(
+          tooltipX + 8,
+          tooltipY + 4,
+        ), // Left-aligned with 8px horizontal and 4px vertical padding
       );
 
       // Draw dot indicator on selected bar

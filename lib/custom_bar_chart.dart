@@ -58,6 +58,7 @@ class MoCustomBarChart<T> extends StatefulWidget {
   final String Function(num yValue)? yAxisLabelFormatter;
   final String Function(T dataItem)? tooltipDataFormatter;
   final double? barWidth;
+  final int? maxXLabels; // Maximum number of x-axis labels to display
 
   const MoCustomBarChart({
     super.key,
@@ -70,6 +71,7 @@ class MoCustomBarChart<T> extends StatefulWidget {
     this.yAxisLabelFormatter,
     this.tooltipDataFormatter,
     this.barWidth,
+    this.maxXLabels,
   });
 
   @override
@@ -79,8 +81,7 @@ class MoCustomBarChart<T> extends StatefulWidget {
 class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
   int? _selectedBar;
   Timer? _autoCloseTimer;
-  bool _isInteracting =
-      false; // Track if user is actively interacting with chart
+  bool _isInteracting = false;
 
   @override
   void dispose() {
@@ -149,6 +150,21 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
       }
     }
 
+    // Filter out labels that are too close to zero to prevent overlap
+    const double minDistanceFromZero =
+        0.1; // Minimum relative distance from zero
+    final double yRange =
+        ((maxY - minY).abs() == 0 ? 1 : (maxY - minY).abs()).toDouble();
+    final double rangeThreshold = yRange * minDistanceFromZero;
+
+    yLabels =
+        yLabels.where((label) {
+          // Always keep zero
+          if (label == 0) return true;
+          // Remove labels too close to zero
+          return label.abs() >= rangeThreshold;
+        }).toList();
+
     double maxLabelWidth = 0;
 
     for (final yValue in yLabels) {
@@ -185,9 +201,7 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
             GestureRecognizerFactoryWithHandlers<_CustomPanGestureRecognizer>(
               () => _CustomPanGestureRecognizer(
                 onPointerDown: (offset) {
-                  setState(() {
-                    _isInteracting = true;
-                  });
+                  _isInteracting = true; // Don't use setState here
                   _updateSelection(offset, context, isTap: true);
                 },
                 onPointerMove: (offset) {
@@ -196,9 +210,7 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
                   }
                 },
                 onPointerUp: () {
-                  setState(() {
-                    _isInteracting = false;
-                  });
+                  _isInteracting = false; // Don't use setState here
                 },
               ),
               (_CustomPanGestureRecognizer instance) {},
@@ -216,6 +228,7 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
           tooltipDataFormatter: widget.tooltipDataFormatter,
           leftMargin: _calculateLeftMargin(),
           barWidth: widget.barWidth,
+          maxXLabels: widget.maxXLabels,
         ),
         child: Container(
           width: double.infinity,
@@ -231,8 +244,10 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
     BuildContext context, {
     required bool isTap,
   }) {
-    // Cancel existing timer
-    _autoCloseTimer?.cancel();
+    // Only cancel existing timer for initial taps, not for pan gestures
+    if (isTap) {
+      _autoCloseTimer?.cancel();
+    }
 
     RenderBox box = context.findRenderObject() as RenderBox;
     final local = box.globalToLocal(globalPosition);
@@ -343,26 +358,60 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
       }
     }
 
-    setState(() {
-      _selectedBar = tappedIndex;
-      // Call the callback if provided
+    // For pan gestures, avoid setState to prevent blinking
+    // For taps, use setState for proper timer and callback handling
+    if (!isTap && _selectedBar != tappedIndex) {
+      // For pan gestures: use setState but avoid unnecessary timer operations
+      setState(() {
+        _selectedBar = tappedIndex;
+      });
       widget.onSelectionChanged?.call(tappedIndex);
 
-      // Call onBarTap for initial tap only
-      if (isTap && tappedIndex != null) {
-        widget.onBarTap?.call(widget.data[tappedIndex]);
-      }
-
-      // Start timer only if a bar is selected
+      // Start/restart timer for pan gestures too
+      _autoCloseTimer?.cancel();
       if (tappedIndex != null) {
         _autoCloseTimer = Timer(const Duration(seconds: 3), () {
-          setState(() {
-            _selectedBar = null;
-            widget.onSelectionChanged?.call(null);
-          });
+          if (mounted) {
+            setState(() {
+              _selectedBar = null;
+              widget.onSelectionChanged?.call(null);
+            });
+          }
         });
       }
-    });
+    } else if (isTap) {
+      // For taps: use setState for proper state management
+      setState(() {
+        _selectedBar = tappedIndex;
+
+        // Call the callback if provided
+        widget.onSelectionChanged?.call(tappedIndex);
+
+        // Call onBarTap for initial tap only
+        if (tappedIndex != null) {
+          widget.onBarTap?.call(widget.data[tappedIndex]);
+        }
+
+        // Start timer only for initial taps and if a bar is selected
+        if (tappedIndex != null) {
+          _autoCloseTimer = Timer(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() {
+                _selectedBar = null;
+                widget.onSelectionChanged?.call(null);
+              });
+            }
+          });
+        }
+
+        // Close tooltip if tapping outside the chart area
+        if (tappedIndex == null && _selectedBar != null) {
+          _selectedBar = null;
+          widget.onSelectionChanged?.call(null);
+          _autoCloseTimer?.cancel();
+        }
+      });
+    }
   }
 }
 
@@ -376,6 +425,7 @@ class BarChartPainter<T> extends CustomPainter {
   final String Function(T dataItem)? tooltipDataFormatter;
   final double leftMargin;
   final double? barWidth;
+  final int? maxXLabels;
 
   BarChartPainter({
     required this.data,
@@ -387,6 +437,7 @@ class BarChartPainter<T> extends CustomPainter {
     this.tooltipDataFormatter,
     required this.leftMargin,
     this.barWidth,
+    this.maxXLabels,
   });
 
   @override
@@ -485,6 +536,19 @@ class BarChartPainter<T> extends CustomPainter {
       }
     }
 
+    // Filter out labels that are too close to zero to prevent overlap
+    const double minDistanceFromZero =
+        0.1; // Minimum relative distance from zero
+    final double rangeThreshold = yRange * minDistanceFromZero;
+
+    yLabels =
+        yLabels.where((label) {
+          // Always keep zero
+          if (label == 0) return true;
+          // Remove labels too close to zero
+          return label.abs() >= rangeThreshold;
+        }).toList();
+
     // Calculate zero line position based on actual data range (for both bars and labels)
     final double sepY =
         topMargin + topBarGap + (chartHeight * (maxY - 0) / yRange);
@@ -535,8 +599,14 @@ class BarChartPainter<T> extends CustomPainter {
       final maxLabelsToFit = (chartWidth / estimatedLabelWidth).floor();
       final totalDataPoints = data.length;
 
+      // Use maxXLabels if provided, otherwise calculate based on available space
+      final effectiveMaxLabels =
+          maxXLabels != null
+              ? maxXLabels!.clamp(1, totalDataPoints)
+              : maxLabelsToFit.clamp(1, totalDataPoints);
+
       // Calculate step size to fit labels without overlap
-      final stepSize = (totalDataPoints / maxLabelsToFit).ceil().clamp(
+      final stepSize = (totalDataPoints / effectiveMaxLabels).ceil().clamp(
         1,
         totalDataPoints,
       );
@@ -738,24 +808,6 @@ class BarChartPainter<T> extends CustomPainter {
       // Ensure tooltip doesn't go above the widget bounds
       tooltipY = tooltipY.clamp(0.0, double.infinity);
 
-      // Draw dashes from calculated start to end position
-      final dashHeight = 5;
-      final dashSpace = 5;
-      double currentY = lineStartY;
-
-      while (currentY < lineEndY) {
-        final remainingHeight = lineEndY - currentY;
-        final actualDashHeight =
-            remainingHeight < dashHeight ? remainingHeight : dashHeight;
-
-        canvas.drawLine(
-          Offset(barCenter, currentY),
-          Offset(barCenter, currentY + actualDashHeight),
-          linePaint,
-        );
-        currentY += dashHeight + dashSpace;
-      }
-
       // Draw tooltip using already calculated values
       final tooltipWidth =
           actualTooltipWidth; // Use the dynamically calculated width
@@ -766,23 +818,35 @@ class BarChartPainter<T> extends CustomPainter {
       double tooltipX = barCenter - tooltipWidth * 0.25;
 
       // Clamp tooltip to stay within widget bounds
-      double originalTooltipX = tooltipX;
       tooltipX = tooltipX.clamp(
         leftMargin,
         leftMargin + chartWidth - tooltipWidth,
       );
 
-      // Check if tooltip was clamped (moved from original position)
-      bool tooltipWasClamped = tooltipX != originalTooltipX;
+      // Calculate the final arrow X position for dotted line alignment
+      // Always align with bar center, regardless of tooltip position
+      final arrowXPosition = barCenter;
 
-      // Calculate arrow position
-      final arrowXOffsetFinal =
-          tooltipWasClamped
-              ? (barCenter - tooltipX).clamp(
-                15.0,
-                tooltipWidth - 15.0,
-              ) // Move arrow with dotted line if clamped
-              : tooltipWidth * 0.25; // Use default 25% position if not clamped
+      // Draw dashes from calculated start to end position - aligned with arrow position
+      final dashHeight = 5;
+      final dashSpace = 5;
+      double currentY = lineStartY;
+
+      while (currentY < lineEndY) {
+        final remainingHeight = lineEndY - currentY;
+        final actualDashHeight =
+            remainingHeight < dashHeight ? remainingHeight : dashHeight;
+
+        canvas.drawLine(
+          Offset(
+            arrowXPosition,
+            currentY,
+          ), // Use arrow position instead of barCenter
+          Offset(arrowXPosition, currentY + actualDashHeight),
+          linePaint,
+        );
+        currentY += dashHeight + dashSpace;
+      }
 
       final tooltipRect = RRect.fromRectAndRadius(
         Rect.fromLTWH(tooltipX, tooltipY, tooltipWidth, tooltipHeight),
@@ -810,19 +874,20 @@ class BarChartPainter<T> extends CustomPainter {
             ..strokeWidth = 1;
       canvas.drawRRect(tooltipRect, tooltipBorderPaint);
 
-      // add arrow to tooltip - use calculated position
+      // add arrow to tooltip - use calculated position aligned with bar center
+      final actualArrowXOffset = barCenter - tooltipX;
       final arrowPath =
           Path()
             ..moveTo(
-              tooltipX + arrowXOffsetFinal - 10,
+              tooltipX + actualArrowXOffset - 10,
               tooltipY + tooltipHeight,
             )
             ..lineTo(
-              tooltipX + arrowXOffsetFinal,
+              tooltipX + actualArrowXOffset,
               tooltipY + tooltipHeight + 10,
             )
             ..lineTo(
-              tooltipX + arrowXOffsetFinal + 10,
+              tooltipX + actualArrowXOffset + 10,
               tooltipY + tooltipHeight,
             )
             ..close();
@@ -841,13 +906,13 @@ class BarChartPainter<T> extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1;
       canvas.drawLine(
-        Offset(tooltipX + arrowXOffsetFinal - 10, tooltipY + tooltipHeight),
-        Offset(tooltipX + arrowXOffsetFinal, tooltipY + tooltipHeight + 10),
+        Offset(tooltipX + actualArrowXOffset - 10, tooltipY + tooltipHeight),
+        Offset(tooltipX + actualArrowXOffset, tooltipY + tooltipHeight + 10),
         arrowBorderPaint,
       );
       canvas.drawLine(
-        Offset(tooltipX + arrowXOffsetFinal + 10, tooltipY + tooltipHeight),
-        Offset(tooltipX + arrowXOffsetFinal, tooltipY + tooltipHeight + 10),
+        Offset(tooltipX + actualArrowXOffset + 10, tooltipY + tooltipHeight),
+        Offset(tooltipX + actualArrowXOffset, tooltipY + tooltipHeight + 10),
         arrowBorderPaint,
       );
 
@@ -960,13 +1025,25 @@ class BarChartPainter<T> extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant BarChartPainter<T> oldDelegate) {
-    return oldDelegate.data != data ||
-        oldDelegate.selectedBar != selectedBar ||
+    // Only repaint if something meaningful has changed
+    final bool dataChanged = oldDelegate.data != data;
+    final bool selectionChanged = oldDelegate.selectedBar != selectedBar;
+    final bool mappersChanged =
         oldDelegate.xValueMapper != xValueMapper ||
-        oldDelegate.yValueMapper != yValueMapper ||
+        oldDelegate.yValueMapper != yValueMapper;
+    final bool formattersChanged =
         oldDelegate.xAxisLabelFormatter != xAxisLabelFormatter ||
         oldDelegate.yAxisLabelFormatter != yAxisLabelFormatter ||
-        oldDelegate.tooltipDataFormatter != tooltipDataFormatter ||
-        oldDelegate.leftMargin != leftMargin;
+        oldDelegate.tooltipDataFormatter != tooltipDataFormatter;
+    final bool layoutChanged =
+        oldDelegate.leftMargin != leftMargin ||
+        oldDelegate.barWidth != barWidth ||
+        oldDelegate.maxXLabels != maxXLabels;
+
+    return dataChanged ||
+        selectionChanged ||
+        mappersChanged ||
+        formattersChanged ||
+        layoutChanged;
   }
 }

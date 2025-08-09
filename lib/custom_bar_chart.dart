@@ -403,16 +403,19 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
     final double leftMargin =
         _calculateLeftMargin(); // Dynamic left margin for y-axis labels
     const double rightMargin = 10; // Add some right margin for padding
-    const double topMargin = 30; // Increased top margin for more space
-    const double bottomMargin = 30; // Increased bottom margin for more space
+    const double topMargin = 30; // Keep original top margin for proper spacing
+    const double bottomMargin =
+        10; // Reduced bottom margin for better height utilization
     // Make spacing proportional to chart height instead of fixed values
     final double topBarGap =
-        box.size.height * 0.15; // 15% of height for tooltip space
+        box.size.height *
+        0.15; // Keep 15% of height for tooltip space above positive bars
     final double bottomBarGap =
-        box.size.height * 0.12; // 12% of height for space below negative bars
-    const double xAxisLabelHeight = 20; // Space reserved for x-axis labels
+        box.size.height * 0.03; // Reduced to 3% for space below negative bars
+    const double xAxisLabelHeight =
+        15; // Reduced space reserved for x-axis labels
     const double bottomSpacing =
-        10; // Additional space between negative bars and x-axis labels
+        2; // Minimal space between negative bars and x-axis labels
     final double chartWidth = box.size.width - leftMargin - rightMargin;
     final double chartHeight =
         box.size.height -
@@ -607,16 +610,19 @@ class BarChartPainter<T> extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // Use the dynamic left margin passed from the parent widget
     const double rightMargin = 10; // Add some right margin for padding
-    const double topMargin = 30; // Increased top margin for more space
-    const double bottomMargin = 30; // Increased bottom margin for more space
+    const double topMargin = 30; // Keep original top margin for proper spacing
+    const double bottomMargin =
+        10; // Reduced bottom margin for better height utilization
     // Make spacing proportional to chart height instead of fixed values
     final double topBarGap =
-        size.height * 0.15; // 15% of height for tooltip space
+        size.height *
+        0.15; // Keep 15% of height for tooltip space above positive bars
     final double bottomBarGap =
-        size.height * 0.12; // 12% of height for space below negative bars
-    const double xAxisLabelHeight = 20; // Space reserved for x-axis labels
+        size.height * 0.03; // Reduced to 3% for space below negative bars
+    const double xAxisLabelHeight =
+        15; // Reduced space reserved for x-axis labels
     const double bottomSpacing =
-        10; // Additional space between negative bars and x-axis labels
+        2; // Minimal space between negative bars and x-axis labels
     final double chartHeight =
         size.height -
         topMargin -

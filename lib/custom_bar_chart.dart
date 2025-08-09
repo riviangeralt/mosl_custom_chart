@@ -76,6 +76,84 @@ class _CustomPanGestureRecognizer extends OneSequenceGestureRecognizer {
   }
 }
 
+/// Style configuration for tooltip appearance
+class TooltipStyle {
+  final Color backgroundColor;
+  final Color borderColor;
+  final double borderWidth;
+  final double borderRadius;
+  final Color shadowColor;
+  final double shadowBlurRadius;
+  final double shadowOpacity;
+
+  const TooltipStyle({
+    this.backgroundColor = Colors.white,
+    this.borderColor = const Color(0xFFE4E4E7),
+    this.borderWidth = 1.0,
+    this.borderRadius = 4.0,
+    this.shadowColor = Colors.black,
+    this.shadowBlurRadius = 20.0,
+    this.shadowOpacity = 0.102,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is TooltipStyle &&
+        other.backgroundColor == backgroundColor &&
+        other.borderColor == borderColor &&
+        other.borderWidth == borderWidth &&
+        other.borderRadius == borderRadius &&
+        other.shadowColor == shadowColor &&
+        other.shadowBlurRadius == shadowBlurRadius &&
+        other.shadowOpacity == shadowOpacity;
+  }
+
+  @override
+  int get hashCode {
+    return backgroundColor.hashCode ^
+        borderColor.hashCode ^
+        borderWidth.hashCode ^
+        borderRadius.hashCode ^
+        shadowColor.hashCode ^
+        shadowBlurRadius.hashCode ^
+        shadowOpacity.hashCode;
+  }
+}
+
+/// Style configuration for dotted line appearance
+class LineStyle {
+  final Color color;
+  final double strokeWidth;
+  final double dashHeight;
+  final double dashSpace;
+
+  const LineStyle({
+    this.color = const Color(0xff0C0C0D),
+    this.strokeWidth = 2.0,
+    this.dashHeight = 5.0,
+    this.dashSpace = 5.0,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is LineStyle &&
+        other.color == color &&
+        other.strokeWidth == strokeWidth &&
+        other.dashHeight == dashHeight &&
+        other.dashSpace == dashSpace;
+  }
+
+  @override
+  int get hashCode {
+    return color.hashCode ^
+        strokeWidth.hashCode ^
+        dashHeight.hashCode ^
+        dashSpace.hashCode;
+  }
+}
+
 class MoCustomBarChart<T> extends StatefulWidget {
   final List<T> data;
   final dynamic Function(T chartDataType) xValueMapper;
@@ -91,6 +169,8 @@ class MoCustomBarChart<T> extends StatefulWidget {
   controller; // Controller for programmatic control
   final num? minY; // Custom minimum Y value
   final num? maxY; // Custom maximum Y value
+  final TooltipStyle? tooltipStyle; // Custom tooltip styling
+  final LineStyle? lineStyle; // Custom dotted line styling
 
   const MoCustomBarChart({
     super.key,
@@ -107,6 +187,8 @@ class MoCustomBarChart<T> extends StatefulWidget {
     this.controller,
     this.minY,
     this.maxY,
+    this.tooltipStyle,
+    this.lineStyle,
   });
 
   @override
@@ -377,6 +459,8 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
           maxXLabels: widget.maxXLabels,
           minY: widget.minY,
           maxY: widget.maxY,
+          tooltipStyle: widget.tooltipStyle ?? const TooltipStyle(),
+          lineStyle: widget.lineStyle ?? const LineStyle(),
         ),
         child: Container(
           width: double.infinity,
@@ -590,6 +674,8 @@ class BarChartPainter<T> extends CustomPainter {
   final int? maxXLabels;
   final num? minY; // Custom minimum Y value
   final num? maxY; // Custom maximum Y value
+  final TooltipStyle tooltipStyle;
+  final LineStyle lineStyle;
 
   BarChartPainter({
     required this.data,
@@ -604,6 +690,8 @@ class BarChartPainter<T> extends CustomPainter {
     this.maxXLabels,
     this.minY,
     this.maxY,
+    required this.tooltipStyle,
+    required this.lineStyle,
   });
 
   @override
@@ -900,7 +988,7 @@ class BarChartPainter<T> extends CustomPainter {
     // Draw X-axis line at zero value (separator line)
     final axisPaint =
         Paint()
-          ..color = const Color(0xFFE4E4E7)
+          ..color = tooltipStyle.borderColor
           ..strokeWidth = 1;
     canvas.drawLine(
       Offset(leftMargin + barsAreaPadding, sepY),
@@ -956,7 +1044,7 @@ class BarChartPainter<T> extends CustomPainter {
           Paint()
             ..color =
                 value == null
-                    ? Color(0xFFE4E4E7)
+                    ? tooltipStyle.borderColor
                     : value >= 0
                     ? const Color(0xFF13861D)
                     : const Color(0xFFDF130C);
@@ -998,8 +1086,8 @@ class BarChartPainter<T> extends CustomPainter {
       // Draw dotted vertical line
       final linePaint =
           Paint()
-            ..color = Color(0xff0C0C0D)
-            ..strokeWidth = 2
+            ..color = lineStyle.color
+            ..strokeWidth = lineStyle.strokeWidth
             ..style = PaintingStyle.stroke
             ..strokeCap = StrokeCap.round;
 
@@ -1099,8 +1187,8 @@ class BarChartPainter<T> extends CustomPainter {
       final arrowXPosition = barCenter;
 
       // Draw dashes from calculated start to end position - aligned with arrow position
-      final dashHeight = 5;
-      final dashSpace = 5;
+      final dashHeight = lineStyle.dashHeight;
+      final dashSpace = lineStyle.dashSpace;
       double currentY = lineStartY;
 
       while (currentY < lineEndY) {
@@ -1129,28 +1217,37 @@ class BarChartPainter<T> extends CustomPainter {
       final tooltipWithArrowPath = Path();
 
       // Start from top-left corner with radius
-      tooltipWithArrowPath.moveTo(tooltipX + 4, tooltipY);
+      tooltipWithArrowPath.moveTo(
+        tooltipX + tooltipStyle.borderRadius,
+        tooltipY,
+      );
 
       // Top edge
-      tooltipWithArrowPath.lineTo(tooltipX + tooltipWidth - 4, tooltipY);
+      tooltipWithArrowPath.lineTo(
+        tooltipX + tooltipWidth - tooltipStyle.borderRadius,
+        tooltipY,
+      );
 
       // Top-right corner
       tooltipWithArrowPath.arcToPoint(
-        Offset(tooltipX + tooltipWidth, tooltipY + 4),
-        radius: Radius.circular(4),
+        Offset(tooltipX + tooltipWidth, tooltipY + tooltipStyle.borderRadius),
+        radius: Radius.circular(tooltipStyle.borderRadius),
         clockwise: true,
       );
 
       // Right edge
       tooltipWithArrowPath.lineTo(
         tooltipX + tooltipWidth,
-        tooltipY + tooltipHeight - 4,
+        tooltipY + tooltipHeight - tooltipStyle.borderRadius,
       );
 
       // Bottom-right corner
       tooltipWithArrowPath.arcToPoint(
-        Offset(tooltipX + tooltipWidth - 4, tooltipY + tooltipHeight),
-        radius: Radius.circular(4),
+        Offset(
+          tooltipX + tooltipWidth - tooltipStyle.borderRadius,
+          tooltipY + tooltipHeight,
+        ),
+        radius: Radius.circular(tooltipStyle.borderRadius),
         clockwise: true,
       );
 
@@ -1173,22 +1270,28 @@ class BarChartPainter<T> extends CustomPainter {
       );
 
       // Continue bottom edge to left
-      tooltipWithArrowPath.lineTo(tooltipX + 4, tooltipY + tooltipHeight);
+      tooltipWithArrowPath.lineTo(
+        tooltipX + tooltipStyle.borderRadius,
+        tooltipY + tooltipHeight,
+      );
 
       // Bottom-left corner
       tooltipWithArrowPath.arcToPoint(
-        Offset(tooltipX, tooltipY + tooltipHeight - 4),
-        radius: Radius.circular(4),
+        Offset(tooltipX, tooltipY + tooltipHeight - tooltipStyle.borderRadius),
+        radius: Radius.circular(tooltipStyle.borderRadius),
         clockwise: true,
       );
 
       // Left edge
-      tooltipWithArrowPath.lineTo(tooltipX, tooltipY + 4);
+      tooltipWithArrowPath.lineTo(
+        tooltipX,
+        tooltipY + tooltipStyle.borderRadius,
+      );
 
       // Top-left corner
       tooltipWithArrowPath.arcToPoint(
-        Offset(tooltipX + 4, tooltipY),
-        radius: Radius.circular(4),
+        Offset(tooltipX + tooltipStyle.borderRadius, tooltipY),
+        radius: Radius.circular(tooltipStyle.borderRadius),
         clockwise: true,
       );
 
@@ -1197,24 +1300,24 @@ class BarChartPainter<T> extends CustomPainter {
       // Draw shadow for the complete tooltip with arrow
       canvas.drawShadow(
         tooltipWithArrowPath,
-        Colors.black.withOpacity(0.102), // #0000001A = 26/255 ≈ 10.2% opacity
-        20, // 20px blur radius
+        tooltipStyle.shadowColor.withOpacity(tooltipStyle.shadowOpacity),
+        tooltipStyle.shadowBlurRadius,
         true, // Enable spread
       );
 
       // Draw tooltip background
       final tooltipPaint =
           Paint()
-            ..color = Colors.white
+            ..color = tooltipStyle.backgroundColor
             ..style = PaintingStyle.fill;
       canvas.drawPath(tooltipWithArrowPath, tooltipPaint);
 
       // Draw tooltip border
       final tooltipBorderPaint =
           Paint()
-            ..color = Color(0xFFE4E4E7)
+            ..color = tooltipStyle.borderColor
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1;
+            ..strokeWidth = tooltipStyle.borderWidth;
       canvas.drawPath(tooltipWithArrowPath, tooltipBorderPaint);
 
       // Draw text on top (left-aligned)
@@ -1358,11 +1461,15 @@ class BarChartPainter<T> extends CustomPainter {
         oldDelegate.maxXLabels != maxXLabels ||
         oldDelegate.minY != minY ||
         oldDelegate.maxY != maxY;
+    final bool stylesChanged =
+        oldDelegate.tooltipStyle != tooltipStyle ||
+        oldDelegate.lineStyle != lineStyle;
 
     return dataChanged ||
         selectionChanged ||
         mappersChanged ||
         formattersChanged ||
-        layoutChanged;
+        layoutChanged ||
+        stylesChanged;
   }
 }

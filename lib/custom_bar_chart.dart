@@ -89,6 +89,8 @@ class MoCustomBarChart<T> extends StatefulWidget {
   final int? maxXLabels; // Maximum number of x-axis labels to display
   final MoCustomBarChartController?
   controller; // Controller for programmatic control
+  final num? minY; // Custom minimum Y value
+  final num? maxY; // Custom maximum Y value
 
   const MoCustomBarChart({
     super.key,
@@ -103,6 +105,8 @@ class MoCustomBarChart<T> extends StatefulWidget {
     this.barWidth,
     this.maxXLabels,
     this.controller,
+    this.minY,
+    this.maxY,
   });
 
   @override
@@ -167,28 +171,35 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
   double _calculateLeftMargin() {
     if (widget.data.isEmpty) return 40.0; // Default minimum margin
 
-    // Calculate y-axis range and labels
-    final maxY = widget.data
+    // Calculate y-axis range and labels - use custom values if provided
+    final dataMaxY = widget.data
         .map((entry) => widget.yValueMapper(entry) ?? 0)
         .reduce((a, b) => a > b ? a : b);
-    final minY = widget.data
+    final dataMinY = widget.data
         .map((entry) => widget.yValueMapper(entry) ?? 0)
         .reduce((a, b) => a < b ? a : b);
 
-    // Generate exactly 5 y-axis labels with 0 always included
+    // Use custom min/max if provided, otherwise use data min/max
+    final maxY = widget.maxY ?? dataMaxY;
+    final minY = widget.minY ?? dataMinY;
+
+    // Generate exactly 5 y-axis labels with smart 0 handling
     List<num> yLabels = [];
 
+    // Check if 0 is within the range and should be included
+    final includeZero = minY <= 0 && maxY >= 0;
+
     if (minY >= 0) {
-      // Only positive values: create 5 evenly spaced labels from 0 to maxY
-      final step = maxY / 4;
+      // Only positive values: create 5 evenly spaced labels from minY to maxY
+      final step = (maxY - minY) / 4;
       for (int i = 0; i < 5; i++) {
-        yLabels.add(step * i);
+        yLabels.add(minY + (step * i));
       }
     } else if (maxY <= 0) {
-      // Only negative values: create 5 evenly spaced labels from minY to 0
-      final step = minY / 4;
-      for (int i = 4; i >= 0; i--) {
-        yLabels.add(step * i);
+      // Only negative values: create 5 evenly spaced labels from minY to maxY
+      final step = (maxY - minY) / 4;
+      for (int i = 0; i < 5; i++) {
+        yLabels.add(minY + (step * i));
       }
     } else {
       // Mixed positive and negative: distribute labels based on data proportion
@@ -213,8 +224,10 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
         }
       }
 
-      // Add zero
-      yLabels.add(0);
+      // Add zero only if it's within range and not too close to custom boundaries
+      if (includeZero) {
+        yLabels.add(0);
+      }
 
       // Add positive labels
       if (positiveLabels > 0) {
@@ -225,19 +238,34 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
       }
     }
 
-    // Filter out labels that are too close to zero to prevent overlap
+    // Filter out labels that are too close to boundaries or zero to prevent overlap
     const double minDistanceFromZero =
         0.1; // Minimum relative distance from zero
+    const double minDistanceFromBoundary =
+        0.05; // Minimum relative distance from min/max
     final double yRange =
         ((maxY - minY).abs() == 0 ? 1 : (maxY - minY).abs()).toDouble();
-    final double rangeThreshold = yRange * minDistanceFromZero;
+    final double zeroThreshold = yRange * minDistanceFromZero;
+    final double boundaryThreshold = yRange * minDistanceFromBoundary;
 
     yLabels =
         yLabels.where((label) {
-          // Always keep zero
-          if (label == 0) return true;
-          // Remove labels too close to zero
-          return label.abs() >= rangeThreshold;
+          // Always keep exact boundaries (custom min/max)
+          if (label == minY || label == maxY) return true;
+
+          // Always keep zero if it's exactly 0 and within range
+          if (label == 0 && includeZero) return true;
+
+          // Remove labels too close to zero (but not zero itself)
+          if (label != 0 && label.abs() < zeroThreshold) return false;
+
+          // Remove labels too close to boundaries
+          if ((label - minY).abs() < boundaryThreshold && label != minY)
+            return false;
+          if ((label - maxY).abs() < boundaryThreshold && label != maxY)
+            return false;
+
+          return true;
         }).toList();
 
     double maxLabelWidth = 0;
@@ -304,6 +332,8 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
           leftMargin: _calculateLeftMargin(),
           barWidth: widget.barWidth,
           maxXLabels: widget.maxXLabels,
+          minY: widget.minY,
+          maxY: widget.maxY,
         ),
         child: Container(
           width: double.infinity,
@@ -512,6 +542,8 @@ class BarChartPainter<T> extends CustomPainter {
   final double leftMargin;
   final double? barWidth;
   final int? maxXLabels;
+  final num? minY; // Custom minimum Y value
+  final num? maxY; // Custom maximum Y value
 
   BarChartPainter({
     required this.data,
@@ -524,6 +556,8 @@ class BarChartPainter<T> extends CustomPainter {
     required this.leftMargin,
     this.barWidth,
     this.maxXLabels,
+    this.minY,
+    this.maxY,
   });
 
   @override
@@ -566,36 +600,45 @@ class BarChartPainter<T> extends CustomPainter {
             : adjustedTotalSpacing / 2; // Center single bar
     final double adjustedBarWidth = fixedBarWidth;
 
-    final maxY = data
+    // Calculate y-axis range - use custom values if provided
+    final dataMaxY = data
         .map((entry) => yValueMapper(entry) ?? 0)
         .reduce((a, b) => a > b ? a : b);
-    final minY = data
+    final dataMinY = data
         .map((entry) => yValueMapper(entry) ?? 0)
         .reduce((a, b) => a < b ? a : b);
-    final yRange = (maxY - minY).abs() == 0 ? 1 : (maxY - minY).abs();
+
+    // Use custom min/max if provided, otherwise use data min/max
+    final chartMaxY = maxY ?? dataMaxY;
+    final chartMinY = minY ?? dataMinY;
+    final yRange =
+        (chartMaxY - chartMinY).abs() == 0 ? 1 : (chartMaxY - chartMinY).abs();
 
     // Draw y-axis labels
     final textStyle = TextStyle(color: Colors.black, fontSize: 12);
 
-    // Generate exactly 5 y-axis labels with 0 always included - same logic as _calculateLeftMargin
+    // Generate exactly 5 y-axis labels with smart 0 handling - same logic as _calculateLeftMargin
     List<num> yLabels = [];
 
-    if (minY >= 0) {
-      // Only positive values: create 5 evenly spaced labels from 0 to maxY
-      final step = maxY / 4;
+    // Check if 0 is within the range and should be included
+    final includeZero = chartMinY <= 0 && chartMaxY >= 0;
+
+    if (chartMinY >= 0) {
+      // Only positive values: create 5 evenly spaced labels from minY to maxY
+      final step = (chartMaxY - chartMinY) / 4;
       for (int i = 0; i < 5; i++) {
-        yLabels.add(step * i);
+        yLabels.add(chartMinY + (step * i));
       }
-    } else if (maxY <= 0) {
-      // Only negative values: create 5 evenly spaced labels from minY to 0
-      final step = minY / 4;
-      for (int i = 4; i >= 0; i--) {
-        yLabels.add(step * i);
+    } else if (chartMaxY <= 0) {
+      // Only negative values: create 5 evenly spaced labels from minY to maxY
+      final step = (chartMaxY - chartMinY) / 4;
+      for (int i = 0; i < 5; i++) {
+        yLabels.add(chartMinY + (step * i));
       }
     } else {
       // Mixed positive and negative: distribute labels based on data proportion
-      final positiveRange = maxY;
-      final negativeRange = minY.abs();
+      final positiveRange = chartMaxY;
+      final negativeRange = chartMinY.abs();
       final totalRange = positiveRange + negativeRange;
 
       // Calculate how many labels to allocate to each side (excluding 0)
@@ -609,45 +652,64 @@ class BarChartPainter<T> extends CustomPainter {
 
       // Add negative labels
       if (negativeLabels > 0) {
-        final negativeStep = minY / negativeLabels;
+        final negativeStep = chartMinY / negativeLabels;
         for (int i = negativeLabels; i >= 1; i--) {
           yLabels.add(negativeStep * i);
         }
       }
 
-      // Add zero
-      yLabels.add(0);
+      // Add zero only if it's within range and not too close to custom boundaries
+      if (includeZero) {
+        yLabels.add(0);
+      }
 
       // Add positive labels
       if (positiveLabels > 0) {
-        final positiveStep = maxY / positiveLabels;
+        final positiveStep = chartMaxY / positiveLabels;
         for (int i = 1; i <= positiveLabels; i++) {
           yLabels.add(positiveStep * i);
         }
       }
     }
 
-    // Filter out labels that are too close to zero to prevent overlap
+    // Filter out labels that are too close to boundaries or zero to prevent overlap
     const double minDistanceFromZero =
         0.1; // Minimum relative distance from zero
-    final double rangeThreshold = yRange * minDistanceFromZero;
+    const double minDistanceFromBoundary =
+        0.05; // Minimum relative distance from min/max
+    final double boundaryThreshold = yRange * minDistanceFromBoundary;
+    final double zeroThreshold = yRange * minDistanceFromZero;
 
     yLabels =
         yLabels.where((label) {
-          // Always keep zero
-          if (label == 0) return true;
-          // Remove labels too close to zero
-          return label.abs() >= rangeThreshold;
+          // Always keep exact boundaries (custom min/max)
+          if (label == chartMinY || label == chartMaxY) return true;
+
+          // Always keep zero if it's exactly 0 and within range
+          if (label == 0 && includeZero) return true;
+
+          // Remove labels too close to zero (but not zero itself)
+          if (label != 0 && label.abs() < zeroThreshold) return false;
+
+          // Remove labels too close to boundaries
+          if ((label - chartMinY).abs() < boundaryThreshold &&
+              label != chartMinY)
+            return false;
+          if ((label - chartMaxY).abs() < boundaryThreshold &&
+              label != chartMaxY)
+            return false;
+
+          return true;
         }).toList();
 
     // Calculate zero line position based on actual data range (for both bars and labels)
     final double sepY =
-        topMargin + topBarGap + (chartHeight * (maxY - 0) / yRange);
+        topMargin + topBarGap + (chartHeight * (chartMaxY - 0) / yRange);
 
     for (final yValue in yLabels) {
       // Calculate position based on the actual data range (same as bars)
       final yPos =
-          topMargin + topBarGap + (chartHeight * (maxY - yValue) / yRange);
+          topMargin + topBarGap + (chartHeight * (chartMaxY - yValue) / yRange);
 
       // Ensure y position is within chart bounds
       if (yPos >= topMargin + topBarGap &&
@@ -1167,7 +1229,9 @@ class BarChartPainter<T> extends CustomPainter {
     final bool layoutChanged =
         oldDelegate.leftMargin != leftMargin ||
         oldDelegate.barWidth != barWidth ||
-        oldDelegate.maxXLabels != maxXLabels;
+        oldDelegate.maxXLabels != maxXLabels ||
+        oldDelegate.minY != minY ||
+        oldDelegate.maxY != maxY;
 
     return dataChanged ||
         selectionChanged ||

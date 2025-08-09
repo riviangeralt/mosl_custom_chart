@@ -40,6 +40,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final Random _rnd = Random();
   final MoCustomBarChartController _chartController =
       MoCustomBarChartController();
+  bool _showNegativeOnly = false;
 
   List<ChartData> get chartData => [
     for (int i = 0; i < 10; i++)
@@ -51,6 +52,10 @@ class _MyHomePageState extends State<MyHomePage> {
             : (() {
               // random magnitude between 1,000 and 20,000,000
               double magnitude = 1000 + _rnd.nextDouble() * (20000000 - 1000);
+              // For negative-only mode, always return negative values
+              if (_showNegativeOnly) {
+                return -magnitude;
+              }
               // randomly decide positive or negative
               return _rnd.nextBool() ? magnitude : -magnitude;
             })(),
@@ -98,6 +103,18 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: const Text('Hide Tooltip'),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            // Test button for negative-only data
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _showNegativeOnly = !_showNegativeOnly;
+                });
+              },
+              child: Text(
+                _showNegativeOnly ? 'Show Mixed Data' : 'Show Negative Only',
+              ),
             ),
             const SizedBox(height: 20),
             SizedBox(

@@ -1006,10 +1006,16 @@ class BarChartPainter<T> extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: 200.0);
       final actualTooltipHeight = textPainter.height + 16; // Dynamic height
-      final actualTooltipWidth = (textPainter.width + 16).clamp(
-        150.0,
-        200.0,
-      ); // Dynamic width with limits
+
+      // Calculate tooltip width: min 100px, max 200px, content-based in between
+      final contentWidth = textPainter.width + 16; // Add padding
+      final actualTooltipWidth =
+          contentWidth < 100.0
+              ? 100.0 // Minimum width of 100px
+              : contentWidth.clamp(
+                100.0,
+                200.0,
+              ); // Content width clamped between 100-200px
 
       // Calculate the end position of the vertical line based on bar type
       final selectedBarValue = yValueMapper(data[i]);

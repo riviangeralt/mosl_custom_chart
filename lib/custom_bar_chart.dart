@@ -2,6 +2,34 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 
+/// Controller for MoCustomBarChart to programmatically control chart interactions
+class MoCustomBarChartController {
+  _MoCustomBarChartState? _state;
+
+  /// Show tooltip at the specified index
+  /// Returns true if successful, false if index is invalid
+  bool showTooltipAtIndex(int index) {
+    if (_state == null) return false;
+    return _state!._showTooltipAtIndex(index);
+  }
+
+  /// Hide the currently visible tooltip
+  void hideTooltip() {
+    _state?._hideTooltip();
+  }
+
+  /// Get the currently selected bar index, returns null if no bar is selected
+  int? get selectedIndex => _state?._selectedBar;
+
+  void _attach(_MoCustomBarChartState state) {
+    _state = state;
+  }
+
+  void _detach() {
+    _state = null;
+  }
+}
+
 // Custom gesture recognizer that has priority over other gestures
 class _CustomPanGestureRecognizer extends OneSequenceGestureRecognizer {
   final Function(Offset)? onPointerDown;
@@ -59,6 +87,8 @@ class MoCustomBarChart<T> extends StatefulWidget {
   final String Function(T dataItem)? tooltipDataFormatter;
   final double? barWidth;
   final int? maxXLabels; // Maximum number of x-axis labels to display
+  final MoCustomBarChartController?
+  controller; // Controller for programmatic control
 
   const MoCustomBarChart({
     super.key,
@@ -72,6 +102,7 @@ class MoCustomBarChart<T> extends StatefulWidget {
     this.tooltipDataFormatter,
     this.barWidth,
     this.maxXLabels,
+    this.controller,
   });
 
   @override
@@ -84,9 +115,53 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
   bool _isInteracting = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Attach controller if provided
+    widget.controller?._attach(this);
+  }
+
+  @override
+  void didUpdateWidget(MoCustomBarChart<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Handle controller changes
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._detach();
+      widget.controller?._attach(this);
+    }
+  }
+
+  @override
   void dispose() {
+    // Detach controller
+    widget.controller?._detach();
     _autoCloseTimer?.cancel();
     super.dispose();
+  }
+
+  // Controller methods for programmatic tooltip control
+  bool _showTooltipAtIndex(int index) {
+    if (index < 0 || index >= widget.data.length) {
+      return false;
+    }
+
+    setState(() {
+      _selectedBar = index;
+    });
+
+    // Call the selection callback if provided
+    widget.onSelectionChanged?.call(_selectedBar);
+
+    return true;
+  }
+
+  void _hideTooltip() {
+    setState(() {
+      _selectedBar = null;
+    });
+
+    // Call the selection callback if provided
+    widget.onSelectionChanged?.call(_selectedBar);
   }
 
   double _calculateLeftMargin() {
@@ -254,9 +329,9 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
 
     final double leftMargin =
         _calculateLeftMargin(); // Dynamic left margin for y-axis labels
-    const double rightMargin = 0; // No right margin
-    const double topMargin = 20;
-    const double bottomMargin = 20;
+    const double rightMargin = 10; // Add some right margin for padding
+    const double topMargin = 30; // Increased top margin for more space
+    const double bottomMargin = 30; // Increased bottom margin for more space
     // Make spacing proportional to chart height instead of fixed values
     final double topBarGap =
         box.size.height * 0.15; // 15% of height for tooltip space
@@ -278,12 +353,17 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
     // Use fixed bar width if provided, otherwise calculate dynamically
     final double fixedBarWidth = widget.barWidth ?? 6.0;
     final double totalBarsWidth = widget.data.length * fixedBarWidth;
-    final double totalSpacing = chartWidth - totalBarsWidth;
+
+    // Add horizontal padding to bars area (10px on each side)
+    const double barsAreaPadding = 10.0;
+    final double adjustedChartWidth = chartWidth - (barsAreaPadding * 2);
+    final double adjustedTotalSpacing = adjustedChartWidth - totalBarsWidth;
+
     final double barSpacing =
         widget.data.length > 1
-            ? totalSpacing /
+            ? adjustedTotalSpacing /
                 (widget.data.length + 1) // Space between bars and margins
-            : totalSpacing / 2; // Center single bar
+            : adjustedTotalSpacing / 2; // Center single bar
     final double adjustedBarWidth = fixedBarWidth;
 
     final maxY = widget.data
@@ -298,8 +378,14 @@ class _MoCustomBarChartState<T> extends State<MoCustomBarChart<T>> {
 
     int? tappedIndex;
     for (int i = 0; i < widget.data.length; i++) {
+      // Add horizontal padding to bars area (10px on each side)
+      const double barsAreaPadding = 10.0;
+
       final barLeft =
-          leftMargin + barSpacing + (i * (fixedBarWidth + barSpacing));
+          leftMargin +
+          barsAreaPadding +
+          barSpacing +
+          (i * (fixedBarWidth + barSpacing));
       final barRight = barLeft + adjustedBarWidth;
       const tapBuffer = 10.0;
       bool isHit;
@@ -443,9 +529,9 @@ class BarChartPainter<T> extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Use the dynamic left margin passed from the parent widget
-    const double rightMargin = 0; // No right margin
-    const double topMargin = 20;
-    const double bottomMargin = 20;
+    const double rightMargin = 10; // Add some right margin for padding
+    const double topMargin = 30; // Increased top margin for more space
+    const double bottomMargin = 30; // Increased bottom margin for more space
     // Make spacing proportional to chart height instead of fixed values
     final double topBarGap =
         size.height * 0.15; // 15% of height for tooltip space
@@ -467,12 +553,17 @@ class BarChartPainter<T> extends CustomPainter {
     // Use fixed bar width if provided, otherwise calculate dynamically
     final double fixedBarWidth = barWidth ?? 6.0;
     final double totalBarsWidth = data.length * fixedBarWidth;
-    final double totalSpacing = chartWidth - totalBarsWidth;
+
+    // Add horizontal padding to bars area (10px on each side)
+    const double barsAreaPadding = 10.0;
+    final double adjustedChartWidth = chartWidth - (barsAreaPadding * 2);
+    final double adjustedTotalSpacing = adjustedChartWidth - totalBarsWidth;
+
     final double barSpacing =
         data.length > 1
-            ? totalSpacing /
+            ? adjustedTotalSpacing /
                 (data.length + 1) // Space between bars and margins
-            : totalSpacing / 2; // Center single bar
+            : adjustedTotalSpacing / 2; // Center single bar
     final double adjustedBarWidth = fixedBarWidth;
 
     final maxY = data
@@ -596,7 +687,7 @@ class BarChartPainter<T> extends CustomPainter {
       // Estimate label width (approximate: character count * 7 + padding)
       final estimatedLabelWidth =
           sampleLabelText.length * 7.0 + 16; // 8px padding on each side
-      final maxLabelsToFit = (chartWidth / estimatedLabelWidth).floor();
+      final maxLabelsToFit = (adjustedChartWidth / estimatedLabelWidth).floor();
       final totalDataPoints = data.length;
 
       // Use maxXLabels if provided, otherwise calculate based on available space
@@ -612,8 +703,11 @@ class BarChartPainter<T> extends CustomPainter {
       );
 
       for (int i = 0; i < data.length; i += stepSize) {
+        // Add horizontal padding to bars area (10px on each side)
+        const double barsAreaPadding = 10.0;
         final xPos =
             leftMargin +
+            barsAreaPadding +
             barSpacing +
             (i * (fixedBarWidth + barSpacing)) +
             fixedBarWidth / 2;
@@ -649,16 +743,22 @@ class BarChartPainter<T> extends CustomPainter {
           ..color = const Color(0xFFE4E4E7)
           ..strokeWidth = 1;
     canvas.drawLine(
-      Offset(leftMargin, sepY),
-      Offset(leftMargin + chartWidth, sepY),
+      Offset(leftMargin + barsAreaPadding, sepY),
+      Offset(leftMargin + chartWidth - barsAreaPadding, sepY),
       axisPaint,
     );
 
     // Draw bars
     for (int i = 0; i < data.length; i++) {
       final value = yValueMapper(data[i]);
+
+      // Add horizontal padding to bars area (10px on each side)
+      const double barsAreaPadding = 10.0;
       final barLeft =
-          leftMargin + barSpacing + (i * (fixedBarWidth + barSpacing));
+          leftMargin +
+          barsAreaPadding +
+          barSpacing +
+          (i * (fixedBarWidth + barSpacing));
       final barRight = barLeft + adjustedBarWidth;
       double barTop, barBottom;
       if (value == null) {
@@ -724,8 +824,14 @@ class BarChartPainter<T> extends CustomPainter {
     // Draw dotted vertical line and tooltip for selected bar
     if (selectedBar != null) {
       final i = selectedBar!;
+
+      // Add horizontal padding to bars area (10px on each side)
+      const double barsAreaPadding = 10.0;
       final barLeft =
-          leftMargin + barSpacing + (i * (fixedBarWidth + barSpacing));
+          leftMargin +
+          barsAreaPadding +
+          barSpacing +
+          (i * (fixedBarWidth + barSpacing));
       final barRight = barLeft + adjustedBarWidth;
       final barCenter = barLeft + (barRight - barLeft) / 2;
 
@@ -875,7 +981,10 @@ class BarChartPainter<T> extends CustomPainter {
       canvas.drawRRect(tooltipRect, tooltipBorderPaint);
 
       // add arrow to tooltip - use calculated position aligned with bar center
-      final actualArrowXOffset = barCenter - tooltipX;
+      final actualArrowXOffset = (barCenter - tooltipX).clamp(
+        15.0, // Minimum 15px from left edge of tooltip
+        tooltipWidth - 15.0, // Maximum 15px from right edge of tooltip
+      );
       final arrowPath =
           Path()
             ..moveTo(
@@ -926,8 +1035,13 @@ class BarChartPainter<T> extends CustomPainter {
       final selectedValue = yValueMapper(data[i]);
       if (selectedValue != null) {
         // Calculate bar dimensions for the selected bar
+        // Add horizontal padding to bars area (10px on each side)
+        const double barsAreaPadding = 10.0;
         final selectedBarLeft =
-            leftMargin + barSpacing + (i * (fixedBarWidth + barSpacing));
+            leftMargin +
+            barsAreaPadding +
+            barSpacing +
+            (i * (fixedBarWidth + barSpacing));
         final selectedBarRight = selectedBarLeft + adjustedBarWidth;
         final selectedBarCenter =
             selectedBarLeft + (selectedBarRight - selectedBarLeft) / 2;

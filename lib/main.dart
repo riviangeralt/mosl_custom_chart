@@ -37,22 +37,25 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
- final Random _rnd = Random();
+  final Random _rnd = Random();
+  final MoCustomBarChartController _chartController =
+      MoCustomBarChartController();
 
-List<ChartData> get chartData => [
-  for (int i = 0; i < 10; i++)
-    ChartData(
-      i + 1,
-      i % 7 == 6 // keep null every 7th day
-          ? null
-          : (() {
+  List<ChartData> get chartData => [
+    for (int i = 0; i < 10; i++)
+      ChartData(
+        i + 1,
+        i % 7 ==
+                6 // keep null every 7th day
+            ? null
+            : (() {
               // random magnitude between 1,000 and 20,000,000
               double magnitude = 1000 + _rnd.nextDouble() * (20000000 - 1000);
               // randomly decide positive or negative
               return _rnd.nextBool() ? magnitude : -magnitude;
             })(),
-    ),
-];
+      ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -72,10 +75,36 @@ List<ChartData> get chartData => [
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 20),
+            // Control buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    _chartController.showTooltipAtIndex(0);
+                  },
+                  child: const Text('Show First'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    _chartController.showTooltipAtIndex(4);
+                  },
+                  child: const Text('Show Middle'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    _chartController.hideTooltip();
+                  },
+                  child: const Text('Hide Tooltip'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
             SizedBox(
               height:
                   300, // Decreased from 400 to 300 to show the bottom spacing
               child: MoCustomBarChart<ChartData>(
+                controller: _chartController,
                 data: chartData,
                 xValueMapper: (chartDataType) => chartDataType.day,
                 yValueMapper: (chartDataType) => chartDataType.value,

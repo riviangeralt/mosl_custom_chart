@@ -1017,16 +1017,17 @@ class BarChartPainter<T> extends CustomPainter {
       double lineEndY;
       double tooltipY;
 
+      // Always position tooltip at the top with consistent spacing regardless of bar values
+      final extraSpaceForTooltip = 20.0;
+      tooltipY = topMargin - 4 - extraSpaceForTooltip;
+
       if (selectedBarValue != null && selectedBarValue >= 0) {
         // For positive bars: line goes from tooltip arrow to x-axis (zero line)
-        final extraSpaceForPositiveBars = 20.0;
-        tooltipY = topMargin - 4 - extraSpaceForPositiveBars;
         lineStartY =
             tooltipY + actualTooltipHeight + 10; // Start from arrow tip
         lineEndY = sepY;
       } else if (selectedBarValue != null && selectedBarValue < 0) {
         // For negative bars: line goes from tooltip arrow to end of negative bar
-        tooltipY = topMargin - 4; // No extra space for negative bars
         lineStartY =
             tooltipY + actualTooltipHeight + 10; // Start from arrow tip
         double negativeBarBottom =
@@ -1039,14 +1040,14 @@ class BarChartPainter<T> extends CustomPainter {
         lineEndY = negativeBarBottom;
       } else {
         // For null values: line goes from tooltip arrow to x-axis (zero line)
-        tooltipY = topMargin - 4; // No extra space for null values
         lineStartY =
             tooltipY + actualTooltipHeight + 10; // Start from arrow tip
         lineEndY = sepY; // End at zero line for null values
       }
 
-      // Ensure tooltip doesn't go above the widget bounds
-      tooltipY = tooltipY.clamp(0.0, double.infinity);
+      // Ensure tooltip stays within widget bounds with minimum padding from top
+      const minTopPadding = 8.0;
+      tooltipY = tooltipY.clamp(minTopPadding, double.infinity);
 
       // Draw tooltip using already calculated values
       final tooltipWidth =

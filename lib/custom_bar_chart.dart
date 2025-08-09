@@ -84,7 +84,7 @@ class MoCustomBarChart<T> extends StatefulWidget {
   final Function(T dataItem)? onBarTap;
   final String Function(dynamic xValue)? xAxisLabelFormatter;
   final String Function(num yValue)? yAxisLabelFormatter;
-  final String Function(T dataItem)? tooltipDataFormatter;
+  final List<TextSpan> Function(T dataItem)? tooltipDataFormatter;
   final double? barWidth;
   final int? maxXLabels; // Maximum number of x-axis labels to display
   final MoCustomBarChartController?
@@ -508,7 +508,7 @@ class BarChartPainter<T> extends CustomPainter {
   final num? Function(T chartDataType) yValueMapper;
   final String Function(dynamic xValue)? xAxisLabelFormatter;
   final String Function(num yValue)? yAxisLabelFormatter;
-  final String Function(T dataItem)? tooltipDataFormatter;
+  final List<TextSpan> Function(T dataItem)? tooltipDataFormatter;
   final double leftMargin;
   final double? barWidth;
   final int? maxXLabels;
@@ -847,27 +847,24 @@ class BarChartPainter<T> extends CustomPainter {
       final dataItem = data[i];
 
       // Use tooltip formatter if provided, otherwise use default formatting
-      final tooltipText =
-          tooltipDataFormatter != null
-              ? tooltipDataFormatter!(dataItem)
-              : _getDefaultTooltipText(
-                dataItem,
-                xValueMapper,
-                yValueMapper,
-                xAxisLabelFormatter,
-                yAxisLabelFormatter,
-              );
+      List<TextSpan> tooltipSpans;
+      if (tooltipDataFormatter != null) {
+        tooltipSpans = tooltipDataFormatter!(dataItem);
+      } else {
+        // Create default text spans
+        tooltipSpans = _getDefaultTooltipSpans(
+          dataItem,
+          xValueMapper,
+          yValueMapper,
+          xAxisLabelFormatter,
+          yAxisLabelFormatter,
+        );
+      }
 
-      final textSpan = TextSpan(
-        text: tooltipText,
-        style: const TextStyle(
-          color: Colors.black,
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
-        ),
-      );
+      // Create a single TextSpan with children for measurement
+      final combinedTextSpan = TextSpan(children: tooltipSpans);
       final textPainter = TextPainter(
-        text: textSpan,
+        text: combinedTextSpan,
         textAlign: TextAlign.left,
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: 200.0);
@@ -1113,7 +1110,7 @@ class BarChartPainter<T> extends CustomPainter {
     }
   }
 
-  String _getDefaultTooltipText(
+  List<TextSpan> _getDefaultTooltipSpans(
     T dataItem,
     dynamic Function(T) xValueMapper,
     num? Function(T) yValueMapper,
@@ -1134,7 +1131,25 @@ class BarChartPainter<T> extends CustomPainter {
                 ? yAxisLabelFormatter(yValue)
                 : '$yValue');
 
-    return '$xLabelText\n$yLabelText';
+    return [
+      TextSpan(
+        text: xLabelText,
+        style: const TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+      const TextSpan(text: '\n', style: TextStyle(fontSize: 14)),
+      TextSpan(
+        text: yLabelText,
+        style: const TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.normal,
+          fontSize: 14,
+        ),
+      ),
+    ];
   }
 
   @override

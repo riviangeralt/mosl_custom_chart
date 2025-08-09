@@ -122,14 +122,83 @@ class _MyHomePageState extends State<MyHomePage> {
                 },
                 tooltipDataFormatter: (ChartData data) {
                   if (data.value == null) {
-                    return "Day ${data.day}\nNo data available";
+                    return [
+                      TextSpan(
+                        text: "Day ${data.day}",
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const TextSpan(
+                        text: "\n",
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      const TextSpan(
+                        text: "No data available",
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontWeight: FontWeight.normal,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ];
                   }
                   final value = data.value!;
                   final formattedValue =
                       value >= 0
                           ? "+₹${(value / 1000000).toStringAsFixed(1)}M"
                           : "-₹${(value.abs() / 1000000).toStringAsFixed(1)}M";
-                  return "Day ${data.day}\nP&L: $formattedValue\nStatus: ${value >= 0 ? 'Profit' : 'Loss'}";
+
+                  return [
+                    TextSpan(
+                      text: "Day ${data.day}",
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const TextSpan(
+                      text: "\nP&L: ",
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontWeight: FontWeight.normal,
+                        fontSize: 14,
+                      ),
+                    ),
+                    TextSpan(
+                      text: formattedValue,
+                      style: TextStyle(
+                        color:
+                            value >= 0
+                                ? const Color(0xFF13861D)
+                                : const Color(0xFFDF130C),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const TextSpan(
+                      text: "\nStatus: ",
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontWeight: FontWeight.normal,
+                        fontSize: 14,
+                      ),
+                    ),
+                    TextSpan(
+                      text: value >= 0 ? 'Profit' : 'Loss',
+                      style: TextStyle(
+                        color:
+                            value >= 0
+                                ? const Color(0xFF13861D)
+                                : const Color(0xFFDF130C),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ];
                 },
               ),
             ),

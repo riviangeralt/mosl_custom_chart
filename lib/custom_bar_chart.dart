@@ -1110,76 +1110,103 @@ class BarChartPainter<T> extends CustomPainter {
         currentY += dashHeight + dashSpace;
       }
 
-      final tooltipRect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(tooltipX, tooltipY, tooltipWidth, tooltipHeight),
-        const Radius.circular(8),
+      // Calculate arrow position aligned with bar center
+      final actualArrowXOffset = (barCenter - tooltipX).clamp(
+        15.0, // Minimum 15px from left edge of tooltip
+        tooltipWidth - 15.0, // Maximum 15px from right edge of tooltip
       );
 
-      // Draw tooltip background first
-      final tooltipPaint =
-          Paint()
-            ..color = Colors.white
-            ..style = PaintingStyle.fill;
+      // Create tooltip path with integrated arrow
+      final tooltipWithArrowPath = Path();
+
+      // Start from top-left corner with radius
+      tooltipWithArrowPath.moveTo(tooltipX + 8, tooltipY);
+
+      // Top edge
+      tooltipWithArrowPath.lineTo(tooltipX + tooltipWidth - 8, tooltipY);
+
+      // Top-right corner
+      tooltipWithArrowPath.arcToPoint(
+        Offset(tooltipX + tooltipWidth, tooltipY + 8),
+        radius: Radius.circular(8),
+        clockwise: true,
+      );
+
+      // Right edge
+      tooltipWithArrowPath.lineTo(
+        tooltipX + tooltipWidth,
+        tooltipY + tooltipHeight - 8,
+      );
+
+      // Bottom-right corner
+      tooltipWithArrowPath.arcToPoint(
+        Offset(tooltipX + tooltipWidth - 8, tooltipY + tooltipHeight),
+        radius: Radius.circular(8),
+        clockwise: true,
+      );
+
+      // Bottom edge to arrow start
+      tooltipWithArrowPath.lineTo(
+        tooltipX + actualArrowXOffset + 10,
+        tooltipY + tooltipHeight,
+      );
+
+      // Arrow point down
+      tooltipWithArrowPath.lineTo(
+        tooltipX + actualArrowXOffset,
+        tooltipY + tooltipHeight + 10,
+      );
+
+      // Arrow point back up to other side
+      tooltipWithArrowPath.lineTo(
+        tooltipX + actualArrowXOffset - 10,
+        tooltipY + tooltipHeight,
+      );
+
+      // Continue bottom edge to left
+      tooltipWithArrowPath.lineTo(tooltipX + 8, tooltipY + tooltipHeight);
+
+      // Bottom-left corner
+      tooltipWithArrowPath.arcToPoint(
+        Offset(tooltipX, tooltipY + tooltipHeight - 8),
+        radius: Radius.circular(8),
+        clockwise: true,
+      );
+
+      // Left edge
+      tooltipWithArrowPath.lineTo(tooltipX, tooltipY + 8);
+
+      // Top-left corner
+      tooltipWithArrowPath.arcToPoint(
+        Offset(tooltipX + 8, tooltipY),
+        radius: Radius.circular(8),
+        clockwise: true,
+      );
+
+      tooltipWithArrowPath.close();
+
+      // Draw shadow for the complete tooltip with arrow
       canvas.drawShadow(
-        Path()..addRRect(tooltipRect),
+        tooltipWithArrowPath,
         Colors.black.withOpacity(0.102), // #0000001A = 26/255 ≈ 10.2% opacity
         20, // 20px blur radius
         true, // Enable spread
       );
-      canvas.drawRRect(tooltipRect, tooltipPaint);
 
-      // add border to tooltip
+      // Draw tooltip background
+      final tooltipPaint =
+          Paint()
+            ..color = Colors.white
+            ..style = PaintingStyle.fill;
+      canvas.drawPath(tooltipWithArrowPath, tooltipPaint);
+
+      // Draw tooltip border
       final tooltipBorderPaint =
           Paint()
             ..color = Color(0xFFE4E4E7)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1;
-      canvas.drawRRect(tooltipRect, tooltipBorderPaint);
-
-      // add arrow to tooltip - use calculated position aligned with bar center
-      final actualArrowXOffset = (barCenter - tooltipX).clamp(
-        15.0, // Minimum 15px from left edge of tooltip
-        tooltipWidth - 15.0, // Maximum 15px from right edge of tooltip
-      );
-      final arrowPath =
-          Path()
-            ..moveTo(
-              tooltipX + actualArrowXOffset - 10,
-              tooltipY + tooltipHeight,
-            )
-            ..lineTo(
-              tooltipX + actualArrowXOffset,
-              tooltipY + tooltipHeight + 10,
-            )
-            ..lineTo(
-              tooltipX + actualArrowXOffset + 10,
-              tooltipY + tooltipHeight,
-            )
-            ..close();
-
-      // add background to arrow
-      final arrowPaint =
-          Paint()
-            ..color = Colors.white
-            ..style = PaintingStyle.fill;
-      canvas.drawPath(arrowPath, arrowPaint);
-
-      // add border to arrow only left and right sides
-      final arrowBorderPaint =
-          Paint()
-            ..color = Color(0xFFE4E4E7)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1;
-      canvas.drawLine(
-        Offset(tooltipX + actualArrowXOffset - 10, tooltipY + tooltipHeight),
-        Offset(tooltipX + actualArrowXOffset, tooltipY + tooltipHeight + 10),
-        arrowBorderPaint,
-      );
-      canvas.drawLine(
-        Offset(tooltipX + actualArrowXOffset + 10, tooltipY + tooltipHeight),
-        Offset(tooltipX + actualArrowXOffset, tooltipY + tooltipHeight + 10),
-        arrowBorderPaint,
-      );
+      canvas.drawPath(tooltipWithArrowPath, tooltipBorderPaint);
 
       // Draw text on top (left-aligned)
       textPainter.paint(

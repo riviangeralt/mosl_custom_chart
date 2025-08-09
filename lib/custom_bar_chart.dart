@@ -1122,9 +1122,9 @@ class BarChartPainter<T> extends CustomPainter {
             ..style = PaintingStyle.fill;
       canvas.drawShadow(
         Path()..addRRect(tooltipRect),
-        Colors.black.withOpacity(0.1),
-        4,
-        false,
+        Colors.black.withOpacity(0.102), // #0000001A = 26/255 ≈ 10.2% opacity
+        20, // 20px blur radius
+        true, // Enable spread
       );
       canvas.drawRRect(tooltipRect, tooltipPaint);
 

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_graphic_chart/custom_area_chart.dart';
 import 'package:flutter_graphic_chart/custom_bar_chart.dart';
+import 'package:flutter_graphic_chart/custom_doughnut_chart.dart';
 import 'dart:math';
+
+import 'package:flutter_graphic_chart/custom_line_chart.dart';
+import 'package:flutter_graphic_chart/custom_pie_chart.dart';
 
 void main() {
   runApp(const MyApp());
@@ -43,7 +48,7 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _showNegativeOnly = false;
 
   List<ChartData> get chartData => [
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 5; i++)
       ChartData(
         i + 1,
         i % 7 ==
@@ -92,7 +97,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    _chartController.showTooltipAtIndex(4);
+                    _chartController.showTooltipAtIndex(chartData.length ~/ 2);
                   },
                   child: const Text('Show Middle'),
                 ),
@@ -120,22 +125,14 @@ class _MyHomePageState extends State<MyHomePage> {
             SizedBox(
               height:
                   300, // Decreased from 400 to 300 to show the bottom spacing
-              child: MoCustomBarChart<ChartData>(
-                controller: _chartController,
+              child: MoCustomDoughnutChart<ChartData>(
+                // controller: _chartController,
                 data: chartData,
-                xValueMapper: (chartDataType) => chartDataType.day,
-                yValueMapper: (chartDataType) => chartDataType.value,
-                barWidth: 6.0, // Fixed bar width at 6px
+                labelMapper: (chartDataType) => chartDataType.day,
+                valueMapper: (chartDataType) => chartDataType.value,
+                // barWidth: 6.0, // Fixed bar width at 6px
                 onSelectionChanged: (int? selectedIndex) {
                   print('Chart selection changed: $selectedIndex');
-                },
-                xAxisLabelFormatter: (xValue) {
-                  return "Day $xValue";
-                },
-                yAxisLabelFormatter: (yValue) {
-                  return yValue >= 0
-                      ? "₹${(yValue / 1000000).toStringAsFixed(1)}M"
-                      : "-₹${(yValue.abs() / 1000000).toStringAsFixed(1)}M";
                 },
                 tooltipDataFormatter: (ChartData data) {
                   if (data.value == null) {
@@ -196,27 +193,24 @@ class _MyHomePageState extends State<MyHomePage> {
                         fontSize: 14,
                       ),
                     ),
-                    const TextSpan(
-                      text: "\nStatus: ",
-                      style: TextStyle(
-                        color: Colors.black54,
-                        fontWeight: FontWeight.normal,
-                        fontSize: 14,
-                      ),
-                    ),
-                    TextSpan(
-                      text: value >= 0 ? 'Profit' : 'Loss',
-                      style: TextStyle(
-                        color:
-                            value >= 0
-                                ? const Color(0xFF13861D)
-                                : const Color(0xFFDF130C),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
                   ];
                 },
+                // yAxisLabelStyleFormatter: (yValue) {
+                //   return TextSpan(
+                //     text:
+                //         yValue >= 0
+                //             ? "+₹${(yValue / 1000000).toStringAsFixed(1)}M"
+                //             : "-₹${(yValue.abs() / 1000000).toStringAsFixed(1)}M",
+                //     style: TextStyle(
+                //       color:
+                //           yValue >= 0
+                //               ? const Color(0xFF13861D)
+                //               : const Color(0xFFDF130C),
+                //       fontWeight: FontWeight.bold,
+                //       fontSize: 12,
+                //     ),
+                //   );
+                // },
               ),
             ),
           ],

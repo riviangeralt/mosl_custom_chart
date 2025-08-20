@@ -1,11 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_graphic_chart/custom_area_chart.dart';
-import 'package:flutter_graphic_chart/custom_bar_chart.dart';
-import 'package:flutter_graphic_chart/custom_doughnut_chart.dart';
 import 'dart:math';
-
-import 'package:flutter_graphic_chart/custom_line_chart.dart';
-import 'package:flutter_graphic_chart/custom_pie_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_graphic_chart/custom_multi_series_bar_chart.dart';
 
 void main() {
   runApp(const MyApp());
@@ -27,11 +22,16 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class ChartData {
+// Define ChartData class for individual data points
+class DataPoint {
   final int day;
   final num? value;
-  ChartData(this.day, this.value);
+  DataPoint(this.day, this.value);
 }
+
+// Assuming MoCustomBarChart is defined in a separate file
+// Include the MoCustomBarChart code from the previous response here
+// For brevity, it's not repeated in this example
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -43,28 +43,63 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final Random _rnd = Random();
-  final MoCustomBarChartController _chartController =
-      MoCustomBarChartController();
+  final MoCustomMultiSeriesBarChartController _chartController =
+      MoCustomMultiSeriesBarChartController();
   bool _showNegativeOnly = false;
+  bool _showPositiveOnly = false;
 
-  List<ChartData> get chartData => [
-    for (int i = 0; i < 5; i++)
-      ChartData(
-        i + 1,
-        i % 7 ==
-                6 // keep null every 7th day
-            ? null
-            : (() {
-              // random magnitude between 1,000 and 20,000,000
-              double magnitude = 1000 + _rnd.nextDouble() * (20000000 - 1000);
-              // For negative-only mode, always return negative values
-              if (_showNegativeOnly) {
-                return -magnitude;
-              }
-              // randomly decide positive or negative
-              return _rnd.nextBool() ? magnitude : -magnitude;
-            })(),
-      ),
+  // Generate data for two series
+  List<ChartData<DataPoint>> get chartSeries => [
+    ChartData<DataPoint>(
+      seriesName: 'Sales',
+      barColorMapper: (yValue) {
+        if (yValue == null) return Colors.grey;
+        return Colors.blue;
+      },
+      data: [
+        for (int i = 0; i < 6; i++)
+          DataPoint(
+            i + 1,
+            i % 7 ==
+                    6 // Null every 7th day
+                ? null
+                : (() {
+                  double magnitude =
+                      1000 + _rnd.nextDouble() * (20000000 - 1000);
+                  return _showNegativeOnly
+                      ? -magnitude
+                      : _showPositiveOnly
+                      ? magnitude
+                      : (_rnd.nextBool() ? magnitude : -magnitude);
+                })(),
+          ),
+      ],
+    ),
+    ChartData<DataPoint>(
+      seriesName: 'Expenses',
+      barColorMapper: (yValue) {
+        if (yValue == null) return Colors.grey;
+        return Colors.red;
+      },
+      data: [
+        for (int i = 0; i < 6; i++)
+          DataPoint(
+            i + 1,
+            i % 7 ==
+                    6 // Null every 7th day
+                ? null
+                : (() {
+                  double magnitude =
+                      1000 + _rnd.nextDouble() * (15000000 - 1000);
+                  return _showNegativeOnly
+                      ? -magnitude
+                      : _showPositiveOnly
+                      ? magnitude
+                      : (_rnd.nextBool() ? magnitude : -magnitude);
+                })(),
+          ),
+      ],
+    ),
   ];
 
   @override
@@ -97,7 +132,9 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    _chartController.showTooltipAtIndex(chartData.length ~/ 2);
+                    _chartController.showTooltipAtIndex(
+                      chartSeries[0].data.length ~/ 2,
+                    );
                   },
                   child: const Text('Show Middle'),
                 ),
@@ -121,24 +158,39 @@ class _MyHomePageState extends State<MyHomePage> {
                 _showNegativeOnly ? 'Show Mixed Data' : 'Show Negative Only',
               ),
             ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _showPositiveOnly = !_showPositiveOnly;
+                });
+              },
+              child: Text(
+                _showPositiveOnly ? 'Show Mixed Data' : 'Show Positive Only',
+              ),
+            ),
             const SizedBox(height: 20),
             SizedBox(
-              height:
-                  300, // Decreased from 400 to 300 to show the bottom spacing
-              child: MoCustomDoughnutChart<ChartData>(
-                // controller: _chartController,
-                data: chartData,
-                labelMapper: (chartDataType) => chartDataType.day,
-                valueMapper: (chartDataType) => chartDataType.value,
-                // barWidth: 6.0, // Fixed bar width at 6px
+              height: 300,
+              child: MoCustomMultiSeriesBarChart<DataPoint>(
+                controller: _chartController,
+                series: chartSeries,
+                maxXLabels: 4,
+                xValueMapper: (data) => data.day,
+                yValueMapper: (data) => data.value,
                 onSelectionChanged: (int? selectedIndex) {
                   print('Chart selection changed: $selectedIndex');
                 },
-                tooltipDataFormatter: (ChartData data) {
+                onBarTap: (DataPoint data, int seriesIndex) {
+                  print(
+                    'Bar tapped: Day ${data.day}, Series $seriesIndex, Value ${data.value}',
+                  );
+                },
+                tooltipDataFormatter: (DataPoint data, int seriesIndex) {
                   if (data.value == null) {
                     return [
                       TextSpan(
-                        text: "Day ${data.day}",
+                        text:
+                            "${chartSeries[seriesIndex].seriesName} - Day ${data.day}",
                         style: const TextStyle(
                           color: Colors.black,
                           fontWeight: FontWeight.bold,
@@ -167,7 +219,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
                   return [
                     TextSpan(
-                      text: "Day ${data.day}",
+                      text:
+                          "${chartSeries[seriesIndex].seriesName} - Day ${data.day}",
                       style: const TextStyle(
                         color: Colors.black,
                         fontWeight: FontWeight.bold,
@@ -195,22 +248,23 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                   ];
                 },
-                // yAxisLabelStyleFormatter: (yValue) {
-                //   return TextSpan(
-                //     text:
-                //         yValue >= 0
-                //             ? "+₹${(yValue / 1000000).toStringAsFixed(1)}M"
-                //             : "-₹${(yValue.abs() / 1000000).toStringAsFixed(1)}M",
-                //     style: TextStyle(
-                //       color:
-                //           yValue >= 0
-                //               ? const Color(0xFF13861D)
-                //               : const Color(0xFFDF130C),
-                //       fontWeight: FontWeight.bold,
-                //       fontSize: 12,
-                //     ),
-                //   );
-                // },
+                yAxisLabelStyleFormatter: (yValue) {
+                  return TextSpan(
+                    text:
+                        yValue >= 0
+                            ? "+₹${(yValue / 1000000).toStringAsFixed(1)}M"
+                            : "-₹${(yValue.abs() / 1000000).toStringAsFixed(1)}M",
+                    style: TextStyle(
+                      color:
+                          yValue >= 0
+                              ? const Color(0xFF13861D)
+                              : const Color(0xFFDF130C),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  );
+                },
+                barWidth: 15.0,
               ),
             ),
           ],
